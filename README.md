@@ -10,6 +10,7 @@ ToneGet allows you to download **your own** workout history from Tonal's servers
 
 **What you get:**
 - Complete workout history (sets, reps, weights, volume, duration)
+- Activity and workout template names for your exported workouts
 - Strength Score history and current muscle-by-muscle breakdown
 - Personal records and progression data
 - Custom workout templates you've created
@@ -60,6 +61,7 @@ The export includes:
       "id": "...",
       "beginTime": "2025-01-15T08:00:00Z",
       "workoutType": "PROGRAM",
+      "workoutTitle": "Full Body Strength",
       "totalVolume": 5000,
       "totalReps": 100,
       "workoutSetActivity": [
@@ -73,6 +75,14 @@ The export includes:
       ]
     }
   ],
+  "activityNames": { "activity-id": "Full Body Strength" },
+  "workoutCatalog": {
+    "workout-template-id": {
+      "id": "workout-template-id",
+      "title": "Full Body Strength",
+      "workoutType": "PROGRAM"
+    }
+  },
   "customWorkouts": { ... },
   "strengthScoreHistory": [ ... ],
   "currentStrengthScores": {

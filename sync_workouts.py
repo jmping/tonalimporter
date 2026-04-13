@@ -34,9 +34,9 @@ import sys
 import os
 from datetime import datetime
 from getpass import getpass
-from typing import List, Dict, Any, Set
+from typing import List, Dict, Any
 
-__version__ = "3.0.0"
+__version__ = "3.1.0"
 
 # Tonal's public OAuth2 client (used by their mobile app)
 AUTH0_DOMAIN = "tonal.auth0.com"
@@ -244,7 +244,7 @@ def download_workouts(id_token: str, user_id: str) -> List[Dict[Any, Any]]:
 
 
 def get_workout_template(id_token: str, workout_id: str) -> dict:
-    """Fetch a single workout template by ID (for custom workouts)."""
+    """Fetch a single workout template by ID."""
     headers = {"Authorization": f"Bearer {id_token}"}
     response = requests.get(
         f"{API_BASE}/v6/workouts/{workout_id}", 
@@ -258,43 +258,100 @@ def get_workout_template(id_token: str, workout_id: str) -> dict:
     return response.json()
 
 
-def fetch_custom_workouts(id_token: str, workouts: List[dict]) -> Dict[str, dict]:
+def is_custom_workout(workout: dict) -> bool:
+    """Return True when a workout activity references a custom template."""
+    workout_type = workout.get('workoutType', '')
+    return workout_type == 'Custom' or workout_type not in KNOWN_WORKOUT_TYPES
+
+
+def build_workout_template_entry(details: dict, workout_type: str = None) -> dict:
+    """Keep only minimal template metadata useful for naming user activities."""
+    title = (
+        details.get("title")
+        or details.get("name")
+        or details.get("displayName")
+        or details.get("workoutTitle")
+    )
+
+    entry = {
+        "id": details.get("id"),
+        "title": title,
+    }
+
+    if workout_type:
+        entry["workoutType"] = workout_type
+
+    if details.get("userId"):
+        entry["userId"] = details.get("userId")
+
+    return {key: value for key, value in entry.items() if value is not None}
+
+
+def fetch_workout_catalog(id_token: str, workouts: List[dict]) -> Dict[str, dict]:
     """
-    Fetch details for custom workout templates.
+    Fetch minimal name metadata for workout templates referenced by user activities.
     
-    Custom workouts are user-created and need to be fetched individually
-    to get their names and structure.
+    This does not export program structure or instructional content; it only keeps
+    IDs and titles so activity records can be associated with human-readable names.
     """
-    custom_ids: Set[str] = set()
-    
+    template_types: Dict[str, str] = {}
+
     for workout in workouts:
-        workout_type = workout.get('workoutType', '')
         template_id = workout.get('workoutId')
-        
         if template_id:
-            # It's custom if type is "Custom" or not in known types
-            if workout_type == 'Custom' or workout_type not in KNOWN_WORKOUT_TYPES:
-                custom_ids.add(template_id)
-    
-    if not custom_ids:
+            template_types.setdefault(template_id, workout.get('workoutType', ''))
+
+    if not template_types:
         return {}
-    
-    print(f"\n🏋️  Fetching {len(custom_ids)} custom workout templates...")
-    
-    custom_workouts = {}
-    for i, workout_id in enumerate(custom_ids, 1):
+
+    print(f"\n🏋️  Fetching names for {len(template_types)} workout templates...")
+
+    workout_catalog = {}
+    for i, (workout_id, workout_type) in enumerate(template_types.items(), 1):
         details = get_workout_template(id_token, workout_id)
         if details:
-            custom_workouts[workout_id] = {
-                "id": details.get("id"),
-                "title": details.get("title"),
-                "userId": details.get("userId"),
-            }
-        
-        if i % 10 == 0:
-            print(f"   Fetched {i}/{len(custom_ids)}...")
-    
-    print(f"   ✅ Fetched {len(custom_workouts)} custom workout details!")
+            entry = build_workout_template_entry(details, workout_type)
+            if entry.get("title"):
+                workout_catalog[workout_id] = entry
+
+        if i % 20 == 0:
+            print(f"   Fetched {i}/{len(template_types)}...")
+
+    print(f"   ✅ Fetched names for {len(workout_catalog)} workout templates!")
+    return workout_catalog
+
+
+def apply_workout_titles(workouts: List[dict], workout_catalog: Dict[str, dict]) -> None:
+    """Add workoutTitle to each activity when a template title is available."""
+    for workout in workouts:
+        template_id = workout.get('workoutId')
+        title = workout_catalog.get(template_id, {}).get('title')
+        if title:
+            workout['workoutTitle'] = title
+
+
+def build_activity_names(workouts: List[dict]) -> Dict[str, str]:
+    """Build a direct activity ID -> activity name mapping."""
+    activity_names = {}
+
+    for workout in workouts:
+        activity_id = workout.get('id') or workout.get('workoutActivityID')
+        title = workout.get('workoutTitle')
+        if activity_id and title:
+            activity_names[activity_id] = title
+
+    return activity_names
+
+
+def build_custom_workouts(workouts: List[dict], workout_catalog: Dict[str, dict]) -> Dict[str, dict]:
+    """Return the legacy customWorkouts map from the full workout catalog."""
+    custom_workouts = {}
+
+    for workout in workouts:
+        template_id = workout.get('workoutId')
+        if template_id and is_custom_workout(workout) and template_id in workout_catalog:
+            custom_workouts[template_id] = workout_catalog[template_id]
+
     return custom_workouts
 
 
@@ -449,7 +506,7 @@ def save_export(data: dict, base_filename: str, use_gzip: bool = True, trim: boo
     return results
 
 
-def print_summary(workouts: List[dict], custom_workouts: dict, strength_history: List[dict]) -> None:
+def print_summary(workouts: List[dict], custom_workouts: dict, workout_catalog: dict, strength_history: List[dict]) -> None:
     """Print summary statistics."""
     total_volume = sum(w.get('totalVolume', 0) for w in workouts)
     total_reps = sum(w.get('totalReps', 0) for w in workouts)
@@ -459,6 +516,8 @@ def print_summary(workouts: List[dict], custom_workouts: dict, strength_history:
     print("📊 YOUR DATA")
     print("=" * 50)
     print(f"   Workouts:        {len(workouts)}")
+    if workout_catalog:
+        print(f"   Named Templates: {len(workout_catalog)}")
     if custom_workouts:
         print(f"   Custom Workouts: {len(custom_workouts)}")
     print(f"   Total Volume:    {total_volume:,} lbs")
@@ -530,8 +589,11 @@ def main():
             print("\n❌ No workouts to export")
             sys.exit(0)
         
-        # Fetch custom workout details
-        custom_workouts = fetch_custom_workouts(id_token, workouts)
+        # Fetch minimal workout title metadata
+        workout_catalog = fetch_workout_catalog(id_token, workouts)
+        apply_workout_titles(workouts, workout_catalog)
+        activity_names = build_activity_names(workouts)
+        custom_workouts = build_custom_workouts(workouts, workout_catalog)
         
         # Fetch strength scores
         strength_history = get_strength_score_history(id_token, user_id)
@@ -548,6 +610,8 @@ def main():
             'user': user_info,
             'profile': profile,
             'workouts': workouts,
+            'activityNames': activity_names,
+            'workoutCatalog': workout_catalog,
             'customWorkouts': custom_workouts,
             'strengthScoreHistory': strength_history,
             'currentStrengthScores': current_strength,
@@ -569,7 +633,7 @@ def main():
         )
         
         # Print summary
-        print_summary(workouts, custom_workouts, strength_history)
+        print_summary(workouts, custom_workouts, workout_catalog, strength_history)
         
         # Print file info
         print("\n" + "=" * 50)
