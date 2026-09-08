@@ -1,8 +1,12 @@
 # ToneGet for Home Assistant
 
+<p align="center">
+  <img src="handle.jpg" alt="Generic strength-training handle artwork" width="320">
+</p>
+
 Unofficial Home Assistant integration and local companion service for accessing your own Tonal workout data.
 
-> **Not affiliated with Tonal Systems, Inc.** This is a community project. It is not produced, endorsed, sponsored, or supported by Tonal Systems, Inc. "Tonal" is used only to identify compatibility with the service.
+> **Not affiliated with Tonal Systems, Inc.** This is a community project. It is not produced, endorsed, sponsored, or supported by Tonal Systems, Inc. "Tonal" is used only to identify compatibility with the service. The artwork above is generic strength-training artwork, not Tonal branding.
 
 This repository is a fork of the community **ToneGet** exporter and retains its data-export functionality. This fork adds a local companion service plus a Home Assistant custom integration so workout and Strength Score data can appear as Home Assistant entities.
 
@@ -12,7 +16,8 @@ This repository is a fork of the community **ToneGet** exporter and retains its 
 - Keeps your Tonal password out of Git, Docker Compose, and Home Assistant YAML.
 - Lets Home Assistant present a native reauthentication form when Tonal requires login again.
 - Exposes a concise default set of Home Assistant sensors.
-- Creates additional detailed sensors disabled by default so users can opt into richer data.
+- Creates a much larger set of detailed sensors disabled by default so users can opt into richer data without entity clutter.
+- Summarizes downloaded workout/set data locally; it does not create an entity for every historical set.
 - Keeps the companion API local/private; no cloud relay or project telemetry is used.
 
 ## Home Assistant entities
@@ -30,7 +35,20 @@ Enabled by default:
 - Total workouts
 - Latest workout
 
-Additional entities are created disabled by default and can be enabled from Home Assistant's entity registry, including service diagnostics, lifetime/latest-workout metrics, Strength Score regions, and individual muscle Strength Scores returned by the API.
+Additional entities are created disabled by default and can be enabled from Home Assistant's entity registry. Depending on what Tonal returns for the account, these include:
+
+- Lifetime volume, reps, sets, first workout, and days since last workout
+- Latest workout volume, reps, sets, duration, type, movement count, max weight, estimated 1RM, ROM, and power where available
+- 14/90/365-day workout and volume windows
+- 7/30-day rep totals and average workout volume
+- Best-observed workout volume, workout reps, set weight, 1RM, ROM, and power from downloaded history
+- A recent-workouts entity with the ten most recent workout summaries as attributes
+- Workout-type counts
+- Strength Score history
+- Strength Score regions and individual muscle Strength Scores returned by the API
+- Service diagnostics such as last sync and service status
+
+Some metrics depend on fields returned by Tonal and may be unavailable for older workouts or specific workout types. Record-style metrics are best values observed in the data returned to ToneGet; they are not claimed to be official Tonal PR records.
 
 ## Architecture
 
