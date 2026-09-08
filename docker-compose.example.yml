@@ -1,0 +1,12 @@
+services:
+  tonalimporter:
+    build: .
+    container_name: tonalimporter
+    restart: unless-stopped
+    environment:
+      TONAL_EMAIL: ${TONAL_EMAIL}
+      TONAL_PASSWORD: ${TONAL_PASSWORD}
+      TONAL_SYNC_INTERVAL_MINUTES: ${TONAL_SYNC_INTERVAL_MINUTES:-180}
+      TONAL_SERVICE_PORT: 8787
+    ports:
+      - "127.0.0.1:8787:8787"
