@@ -1,87 +1,102 @@
 # Home Assistant companion service
 
-This branch adds a small local HTTP service that periodically retrieves your Tonal data and exposes a compact JSON summary for Home Assistant.
+This branch adds a local Tonal data service plus a Home Assistant custom integration with native UI setup and reauthentication.
 
-## Why use a companion service?
+## Authentication model
 
-Home Assistant only reads a local HTTP endpoint. Tonal credentials stay with the companion container and are not stored in Home Assistant YAML or committed to Git.
+Tonal credentials are **not** stored in Docker Compose, Home Assistant YAML, or this repository.
 
-## 1. Configure credentials
+When Tonal authentication is missing or expires, Home Assistant marks the integration as requiring reauthentication. Open the integration in the Home Assistant app and choose **Reconfigure / Reauthenticate**. The native HA form asks for your Tonal email and password; iOS/macOS Password AutoFill can supply those fields. Home Assistant sends the credentials over the private local connection to the companion service, which uses them for the Tonal OAuth exchange and does not persist the password.
 
-Create a local `.env` file next to `docker-compose.example.yml` (do not commit it):
+The companion service persists only Tonal's returned token material in `/data/tonal_token.json`, with restrictive file permissions. If Tonal stops accepting that token, the service returns `auth_required` and HA starts the reauthentication flow again.
 
-```env
-TONAL_EMAIL=you@example.com
-TONAL_PASSWORD=your-password
-TONAL_SYNC_INTERVAL_MINUTES=180
-```
-
-The repository `.gitignore` should keep standard `.env` files out of Git; verify before committing local changes.
-
-## 2. Start the service
+## 1. Start the companion service
 
 ```bash
 cp docker-compose.example.yml docker-compose.yml
 docker compose up -d --build
 ```
 
-The example Compose file binds the service to `127.0.0.1:8787` on the Docker host.
+No `.env` credentials are required. The optional environment setting is the sync interval:
 
-Check it locally:
+```env
+TONAL_SYNC_INTERVAL_MINUTES=180
+```
+
+Check the service locally:
 
 ```bash
 curl http://127.0.0.1:8787/health
-curl http://127.0.0.1:8787/summary
 ```
 
-Endpoints:
+Before authentication, the expected state is `auth_required`.
 
-- `/health` — service status, last successful sync, last error
-- `/summary` — HA-friendly workout and Strength Score summary
+## 2. Make the service reachable from Home Assistant
 
-## 3. Make the endpoint reachable from Home Assistant
+If Home Assistant runs in Docker on the same Mac, `127.0.0.1` inside the HA container refers to the HA container, not the Docker host.
 
-If Home Assistant runs in Docker on the same host, `127.0.0.1` inside the HA container is the HA container itself, not the Docker host.
-
-On Docker Desktop for macOS, `host.docker.internal` normally resolves to the Docker host. The example `home_assistant/rest.yaml` therefore uses:
+Preferred setup: attach Home Assistant and `tonalimporter` to the same private Docker network and configure the integration with:
 
 ```text
-http://host.docker.internal:8787/summary
+http://tonalimporter:8787
 ```
 
-If your Home Assistant container cannot reach that address, attach both containers to the same user-defined Docker network and use `http://tonalimporter:8787/summary` instead. In that configuration, remove the localhost-only `ports` binding if you do not need host access.
+Alternatively, Docker Desktop for macOS commonly exposes the host as:
 
-## 4. Add the Home Assistant sensors
-
-The repository contains `home_assistant/rest.yaml`. Either merge that block into your existing `rest:` configuration or include it from `configuration.yaml`:
-
-```yaml
-rest: !include rest.yaml
+```text
+http://host.docker.internal:8787
 ```
 
-If you already have a `rest:` key, do not add a second one; merge the entries instead.
+Keep port 8787 private. There is no reason to expose the companion service to the public internet, Cloudflare, or public SSH.
 
-Run Home Assistant's configuration check before restarting.
+## 3. Install the Home Assistant custom integration
+
+Copy:
+
+```text
+custom_components/tonal_companion/
+```
+
+into your Home Assistant configuration directory as:
+
+```text
+/config/custom_components/tonal_companion/
+```
+
+Restart Home Assistant after installing the component.
+
+Then in Home Assistant:
+
+1. Go to **Settings > Devices & services > Add Integration**.
+2. Search for **Tonal Companion**.
+3. Enter the private companion-service URL.
+4. Because the new service has no Tonal token yet, HA will request reauthentication.
+5. Enter your Tonal email and password in the Home Assistant app. Apple Passwords/AutoFill should be available for the email and password selectors.
+6. After successful authentication, HA reloads the integration and creates Tonal sensors.
+
+## Reauthentication behavior
+
+The integration uses Home Assistant's native config-entry reauthentication mechanism. If the coordinator sees `auth_required`, it raises `ConfigEntryAuthFailed`; Home Assistant then surfaces the repair/reauthentication flow in the UI and mobile app.
+
+The password is not written into the HA config entry. The config entry contains only the local companion service URL.
 
 ## Sensors included
 
-- `sensor.tonal_service_status`
-- `sensor.tonal_total_workouts`
-- `sensor.tonal_latest_workout`
-- `sensor.tonal_workouts_7_days`
-- `sensor.tonal_workouts_30_days`
-- `sensor.tonal_volume_7_days`
-- `sensor.tonal_volume_30_days`
-- `sensor.tonal_strength_score`
-- `sensor.tonal_upper_strength_score`
-- `sensor.tonal_lower_strength_score`
-- `sensor.tonal_core_strength_score`
-
-The main Strength Score sensor also carries region and individual-muscle data as attributes.
+- Strength Score
+- Upper Strength Score
+- Lower Strength Score
+- Core Strength Score
+- Workouts 7d
+- Workouts 30d
+- Volume 7d
+- Volume 30d
+- Total Workouts
+- Latest Workout (with latest-workout details as attributes)
 
 ## Security notes
 
-- Never commit Tonal credentials or the `.env` file.
-- Keep the service private to the Docker host or a private Docker network; it has no authentication layer because it is intended only for trusted local access.
-- The service polls Tonal every 180 minutes by default to avoid unnecessary unofficial API traffic.
-- This project uses an unofficial Tonal API workflow and may stop working if Tonal changes authentication or API behavior.
+- No Tonal password in Git, Compose, HA YAML, or persistent service state.
+- Keep the companion API reachable only from the HA host/private Docker network.
+- The returned Tonal token is sensitive and is stored in the service data volume with mode `0600`.
+- The service polls Tonal every 180 minutes by default to reduce unnecessary unofficial API traffic.
+- Tonal's API/authentication is unofficial and may change without notice.
