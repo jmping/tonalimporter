@@ -1,0 +1,9 @@
+{
+  "domain": "tonal_companion",
+  "name": "Tonal Companion",
+  "version": "0.1.0",
+  "documentation": "https://github.com/jmping/tonalimporter",
+  "config_flow": true,
+  "iot_class": "local_polling",
+  "requirements": []
+}
