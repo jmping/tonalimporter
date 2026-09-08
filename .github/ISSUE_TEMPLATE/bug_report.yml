@@ -1,0 +1,66 @@
+name: Bug report
+description: Report a reproducible problem with ToneGet for Home Assistant
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include passwords, Tonal tokens, raw workout exports, or other sensitive personal data.
+  - type: input
+    id: ha_version
+    attributes:
+      label: Home Assistant version
+      placeholder: 2026.8.3
+    validations:
+      required: true
+  - type: input
+    id: integration_version
+    attributes:
+      label: Integration version / commit
+      placeholder: 0.2.0 or commit SHA
+    validations:
+      required: true
+  - type: dropdown
+    id: install_type
+    attributes:
+      label: Home Assistant install type
+      options:
+        - Home Assistant OS
+        - Home Assistant Container
+        - Home Assistant Supervised
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      description: Remove email addresses, tokens, workout IDs, and other personal data before posting.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I reproduced this on the latest available version/branch.
+          required: true
+        - label: I removed credentials, tokens, and personal workout data from this report.
+          required: true
