@@ -8,6 +8,8 @@ Unofficial Home Assistant integration and local companion service for accessing 
 
 > **Not affiliated with Tonal Systems, Inc.** This is a community project. It is not produced, endorsed, sponsored, or supported by Tonal Systems, Inc. "Tonal" is used only to identify compatibility with the service. The artwork above is generic strength-training artwork, not Tonal branding.
 
+> **Vibecoded project:** this Home Assistant bridge was built collaboratively with an AI coding assistant on top of the community **ToneGet** exporter. It has been tested on a real Home Assistant installation and is intentionally labeled beta software. Expect rough edges, undocumented-API breakage, and occasional implementation choices that deserve review.
+
 This repository is a fork of the community **ToneGet** exporter and retains its data-export functionality. This fork adds a local companion service plus a Home Assistant custom integration so workout and Strength Score data can appear as Home Assistant entities.
 
 ## What it does
@@ -86,9 +88,30 @@ No Tonal password is stored in the Compose file. Before authentication, this sho
 curl http://127.0.0.1:8787/health
 ```
 
-### 2. Install the Home Assistant custom integration
+### 2. Install the Home Assistant integration with HACS
 
-Copy:
+In HACS, add this repository as a **Custom repository** with category **Integration**:
+
+```text
+https://github.com/jmping/tonalimporter
+```
+
+Then install **ToneGet for Home Assistant** and restart Home Assistant.
+
+The companion service is still a separate Docker service; HACS installs only the Home Assistant custom component.
+
+For a Docker-based Home Assistant installation on the same host, the companion URL will commonly be one of:
+
+```text
+http://tonalimporter:8787
+http://host.docker.internal:8787
+```
+
+See [HA_SETUP.md](HA_SETUP.md) for more detail.
+
+### Manual Home Assistant installation
+
+If you prefer not to use HACS, copy:
 
 ```text
 custom_components/tonal_companion/
@@ -102,15 +125,6 @@ into:
 
 Restart Home Assistant, then go to **Settings > Devices & services > Add Integration** and search for **ToneGet for Home Assistant**.
 
-For a Docker-based Home Assistant installation on the same host, the companion URL will commonly be one of:
-
-```text
-http://tonalimporter:8787
-http://host.docker.internal:8787
-```
-
-See [HA_SETUP.md](HA_SETUP.md) for more detail.
-
 ## Authentication and privacy
 
 When authentication is required, Home Assistant presents email/password fields in its native UI. The credentials are sent over your private local connection to the companion service, used for the Tonal authentication exchange, and the password is not persisted by this project.
@@ -118,10 +132,6 @@ When authentication is required, Home Assistant presents email/password fields i
 The companion service stores only returned Tonal token material in its private data volume. Treat that token as sensitive. No analytics, telemetry, or developer-hosted backend is used.
 
 See [SECURITY.md](SECURITY.md) for security guidance.
-
-## HACS
-
-The custom integration includes HACS metadata for users who prefer HACS-based installation. During the beta period, manual installation remains the most predictable path because the companion service must still be deployed separately.
 
 ## ToneGet exporter
 
@@ -150,7 +160,7 @@ This project does not attempt to download or redistribute Tonal instructional vi
 
 ## Development status
 
-The Home Assistant integration is currently **beta software**. Before filing an issue, update to the latest release/branch and reproduce the problem. Do not post passwords, tokens, full exported workout files, or other sensitive personal data in issues.
+The Home Assistant integration is currently **beta software**. It is a community-built, vibecoded bridge rather than an official Tonal or Home Assistant product. Before filing an issue, update to the latest release/branch and reproduce the problem. Do not post passwords, tokens, full exported workout files, or other sensitive personal data in issues.
 
 ## License
 
