@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, ha-companion-service]
+    branches: [main, expand-ha-data]
   pull_request:
 
 permissions:
@@ -23,11 +23,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install ruff
+          pip install ruff pytest
       - name: Compile Python
-        run: python -m compileall -q sync_workouts.py tonal_service.py custom_components/tonal_companion
+        run: python -m compileall -q sync_workouts.py tonal_service.py custom_components/tonal_companion tests
       - name: Lint HA integration and companion service
-        run: ruff check tonal_service.py custom_components/tonal_companion --ignore EXE001,UP006,UP035,UP045,RUF100,UP031
+        run: ruff check tonal_service.py custom_components/tonal_companion tests --ignore EXE001,UP006,UP035,UP045,RUF100,UP031
+      - name: Test summary aggregation
+        run: pytest -q tests
       - name: Validate JSON metadata
         run: |
           python - <<'PY'
