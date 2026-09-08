@@ -1,0 +1,30 @@
+{
+  "title": "Tonal Companion",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect to Tonal Companion",
+        "description": "Enter the local URL of the Tonal companion service.",
+        "data": {
+          "host": "Companion service URL"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Sign in to Tonal",
+        "description": "Tonal authentication is required. Your password is sent to the local Tonal companion service for this sign-in only and is not stored there.",
+        "data": {
+          "email": "Tonal email",
+          "password": "Tonal password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the local Tonal companion service.",
+      "invalid_auth": "Tonal rejected the credentials."
+    },
+    "abort": {
+      "already_configured": "This Tonal companion service is already configured.",
+      "reauth_successful": "Tonal authentication was successful."
+    }
+  }
+}

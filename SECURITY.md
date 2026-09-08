@@ -1,71 +1,66 @@
 # Security Policy
 
-## How This Tool Handles Your Credentials
+## Project status
 
-ToneGet needs your Tonal login credentials to access your workout data. Here's exactly what happens:
+ToneGet for Home Assistant is an unofficial community project. It is not affiliated with, endorsed by, or supported by Tonal Systems, Inc.
 
-### What We DO:
+## Credential handling
 
-- ✅ Send your credentials directly to Tonal's Auth0 authentication servers via HTTPS
-- ✅ Use the same OAuth2 flow that Tonal's official mobile app uses
-- ✅ Discard your password from memory immediately after authentication
-- ✅ Use TLS/HTTPS for all network communication
+The Home Assistant companion flow is designed so your Tonal password is not stored in Git, Docker Compose, Home Assistant YAML, or the Home Assistant config entry.
 
-### What We DO NOT Do:
+When authentication is required:
 
-- ❌ Store your password anywhere
-- ❌ Log your credentials
-- ❌ Send your credentials to any server other than Tonal's
-- ❌ Save authentication tokens between sessions
-- ❌ Include any analytics, telemetry, or tracking
-- ❌ Phone home to any servers
+1. Home Assistant presents a native email/password form.
+2. Home Assistant sends those credentials over the private local connection to the companion service.
+3. The companion service sends the credentials to Tonal's Auth0 endpoint over HTTPS for the authentication exchange.
+4. The password is not written to disk by this project.
+5. Returned Tonal token material is persisted in the companion service data volume so future syncs can run without storing/re-entering the password.
 
-## Verifying This Yourself
+Treat the token file as sensitive. The service writes it with restrictive permissions (`0600`).
 
-The entire codebase is open source. You can verify:
+The original standalone `sync_workouts.py` exporter uses credentials interactively and does not require the companion service token persistence model.
 
-### Python Script
+## Network exposure
 
-Check `sync_workouts.py` and search for `authenticate`. You'll see credentials go directly to `tonal.auth0.com`:
+The companion HTTP API has no independent user-authentication layer because it is intended only for a trusted local/private network.
 
-```python
-response = requests.post(
-    f"https://{AUTH0_DOMAIN}/oauth/token",
-    json={...}
-)
-```
+**Do not expose port 8787 to the public internet.** Prefer one of:
 
-### Network Monitoring
+- a private Docker network shared with Home Assistant;
+- localhost/host-only access where appropriate;
+- a trusted LAN or private overlay such as Tailscale when deliberately configured.
 
-Use a tool like Wireshark, Charles Proxy, or mitmproxy to verify the only external connections are to Tonal's servers.
+Do not place the companion API behind a public reverse proxy unless you add an appropriate authentication and authorization layer yourself.
 
-## Reporting Security Issues
+## Sensitive endpoints
 
-If you find a security vulnerability:
+`POST /auth` accepts a Tonal email/password for the one-time authentication exchange. Anyone who can reach this endpoint can submit credentials to the service. This is why the service must remain private.
 
-1. **DO NOT** open a public issue
-2. Email the maintainer directly (see profile)
-3. Include:
-   - Description of the vulnerability
-   - Steps to reproduce
-   - Potential impact
+`GET /summary` exposes personal workout/fitness information. Treat it as private data even though it does not contain the Tonal password or stored token.
 
-We'll respond within 48 hours and work with you on a fix.
+The service must never include stored token material in `/health`, `/summary`, logs, or exceptions returned to Home Assistant.
 
-## Best Practices for Users
+## Privacy
 
-1. **Use a strong, unique password** for your Tonal account
-2. **Download only from official sources** - GitHub releases or building from source
-3. **Verify checksums** if provided with releases
-4. **Review the code** before running if you're security-conscious
-5. **Don't share your export files** publicly (they contain personal data)
-6. **Store exports securely** - they contain your workout history
+This project includes no analytics, telemetry, tracking pixel, developer cloud relay, or hosted backend.
+
+Your workout data is retrieved from Tonal and processed locally by the companion service/Home Assistant. Exported workout files and Home Assistant history may contain sensitive personal fitness information; protect backups accordingly.
+
+## Reporting a vulnerability
+
+Please do **not** publish passwords, tokens, raw workout exports, or exploit details in a public issue.
+
+For a security-sensitive report, contact the repository maintainer privately through the contact method listed on the maintainer's GitHub profile. Include a concise description, affected version/commit, reproduction steps, and impact. Do not include real credentials.
+
+## User security checklist
+
+- Keep the companion service private.
+- Use a strong unique Tonal password.
+- Keep Home Assistant and Docker patched.
+- Protect the companion data volume and Home Assistant backups.
+- Do not paste token files or raw exports into GitHub issues.
+- Review configuration changes that alter the `ports:` mapping before deploying them.
 
 ## Dependencies
 
-| Package | Purpose | Risk Level |
-|---------|---------|------------|
-| requests | HTTP client | Low - widely audited |
-
-We intentionally minimize dependencies to reduce attack surface.
-
+The companion/exporter intentionally keeps its Python dependency set small. Review `requirements.txt` and the Home Assistant custom component manifest before installation.

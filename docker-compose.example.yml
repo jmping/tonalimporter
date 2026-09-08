@@ -1,0 +1,16 @@
+services:
+  tonalimporter:
+    build: .
+    container_name: tonalimporter
+    restart: unless-stopped
+    environment:
+      TONAL_SYNC_INTERVAL_MINUTES: ${TONAL_SYNC_INTERVAL_MINUTES:-180}
+      TONAL_SERVICE_PORT: 8787
+      TONAL_TOKEN_FILE: /data/tonal_token.json
+    volumes:
+      - tonalimporter_data:/data
+    ports:
+      - "127.0.0.1:8787:8787"
+
+volumes:
+  tonalimporter_data:
