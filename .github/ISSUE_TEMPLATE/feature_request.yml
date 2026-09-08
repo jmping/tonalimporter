@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest an improvement or additional Home Assistant entity
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Use case
+      description: What would you like the integration to do, and why is it useful?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include entity names/data fields if relevant. Do not include private workout exports.
+  - type: dropdown
+    id: default
+    attributes:
+      label: Should this be enabled by default?
+      options:
+        - No - opt-in entity is appropriate
+        - Yes - broadly useful default entity
+        - Not sure
+    validations:
+      required: true
