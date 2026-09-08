@@ -29,7 +29,7 @@ jobs:
       - name: Lint HA integration and companion service
         run: ruff check tonal_service.py custom_components/tonal_companion tests --ignore EXE001,UP006,UP035,UP045,RUF100,UP031
       - name: Test summary aggregation
-        run: pytest -q tests
+        run: python -m pytest -q tests
       - name: Validate JSON metadata
         run: |
           python - <<'PY'
