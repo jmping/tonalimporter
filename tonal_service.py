@@ -10,6 +10,7 @@ import json
 import os
 import threading
 import time
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional
@@ -56,6 +57,15 @@ def _parse_dt(value: str):
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(timezone.utc)
+
+
+def _safe_number(value):
+    if isinstance(value, (int, float)):
+        return value
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _load_tokens() -> None:
@@ -109,36 +119,169 @@ def _clear_tokens(error: Optional[str] = None) -> None:
         })
 
 
+def _workout_duration(workout: dict) -> Any:
+    return workout.get("duration") or workout.get("durationSeconds") or workout.get("workoutDuration")
+
+
+def _set_summary(workout: dict) -> dict[str, Any]:
+    sets = workout.get("workoutSetActivity") or []
+    movement_groups: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {
+            "sets": 0,
+            "reps": 0,
+            "volume": 0.0,
+            "max_weight": None,
+            "max_one_rep_max": None,
+            "best_range_of_motion": None,
+        }
+    )
+    total_sets = 0
+    total_reps = 0
+    max_weight = None
+    max_one_rep_max = None
+    best_rom = None
+    max_power = None
+
+    for item in sets:
+        total_sets += 1
+        reps = _safe_number(item.get("repCount")) or 0
+        weight = _safe_number(item.get("weight"))
+        one_rm = _safe_number(item.get("oneRepMax"))
+        rom = _safe_number(item.get("rangeOfMotion"))
+        power = _safe_number(item.get("power")) or _safe_number(item.get("maxConPower"))
+        total_reps += int(reps)
+        if weight is not None:
+            max_weight = weight if max_weight is None else max(max_weight, weight)
+        if one_rm is not None:
+            max_one_rep_max = one_rm if max_one_rep_max is None else max(max_one_rep_max, one_rm)
+        if rom is not None:
+            best_rom = rom if best_rom is None else max(best_rom, rom)
+        if power is not None:
+            max_power = power if max_power is None else max(max_power, power)
+
+        movement_id = str(item.get("movementId") or item.get("activityId") or "unknown")
+        group = movement_groups[movement_id]
+        group["sets"] += 1
+        group["reps"] += int(reps)
+        if weight is not None and reps:
+            group["volume"] += weight * reps
+        if weight is not None:
+            group["max_weight"] = weight if group["max_weight"] is None else max(group["max_weight"], weight)
+        if one_rm is not None:
+            group["max_one_rep_max"] = one_rm if group["max_one_rep_max"] is None else max(group["max_one_rep_max"], one_rm)
+        if rom is not None:
+            group["best_range_of_motion"] = rom if group["best_range_of_motion"] is None else max(group["best_range_of_motion"], rom)
+
+    movements = []
+    for movement_id, stats in movement_groups.items():
+        movements.append({"movement_id": movement_id, **stats, "volume": round(stats["volume"], 1)})
+    movements.sort(key=lambda item: (-item["volume"], item["movement_id"]))
+
+    return {
+        "set_count": total_sets,
+        "reps_from_sets": total_reps,
+        "movement_count": len(movement_groups),
+        "max_weight": max_weight,
+        "max_one_rep_max": max_one_rep_max,
+        "best_range_of_motion": best_rom,
+        "max_power": max_power,
+        "movements": movements[:25],
+    }
+
+
 def build_summary(export_data: Dict[str, Any]) -> Dict[str, Any]:
     workouts = export_data.get("workouts", [])
     now = datetime.now(timezone.utc)
     latest = workouts[0] if workouts else {}
 
-    def count_since(days: int) -> int:
+    def workouts_since(days: int) -> list[dict]:
         cutoff = now - timedelta(days=days)
-        return sum(
-            1 for workout in workouts
-            if (_parse_dt(workout.get("beginTime")) or datetime.min.replace(tzinfo=timezone.utc)) >= cutoff
-        )
+        return [workout for workout in workouts if (_parse_dt(workout.get("beginTime")) or datetime.min.replace(tzinfo=timezone.utc)) >= cutoff]
 
-    def volume_since(days: int) -> float:
-        cutoff = now - timedelta(days=days)
-        total = 0.0
-        for workout in workouts:
-            dt = _parse_dt(workout.get("beginTime"))
-            if dt and dt >= cutoff:
-                total += float(workout.get("totalVolume") or 0)
-        return total
+    def volume(workout_list: list[dict]) -> float:
+        return sum(float(workout.get("totalVolume") or 0) for workout in workout_list)
+
+    def reps(workout_list: list[dict]) -> int:
+        return sum(int(workout.get("totalReps") or 0) for workout in workout_list)
+
+    windows = {}
+    for days in (7, 14, 30, 90, 365):
+        selected = workouts_since(days)
+        windows[str(days)] = {
+            "workouts": len(selected),
+            "volume": volume(selected),
+            "reps": reps(selected),
+            "avg_volume_per_workout": round(volume(selected) / len(selected), 1) if selected else 0,
+        }
+
+    latest_set_summary = _set_summary(latest)
+    recent = workouts[:10]
+    recent_workouts = []
+    workout_types: dict[str, int] = defaultdict(int)
+    max_workout_volume = None
+    max_workout_reps = None
+    max_set_weight = None
+    max_one_rm = None
+    best_rom = None
+    max_power = None
+    total_sets = 0
+
+    for workout in workouts:
+        workout_types[str(workout.get("workoutType") or "Unknown")] += 1
+        workout_volume = _safe_number(workout.get("totalVolume"))
+        workout_reps = _safe_number(workout.get("totalReps"))
+        if workout_volume is not None:
+            max_workout_volume = workout_volume if max_workout_volume is None else max(max_workout_volume, workout_volume)
+        if workout_reps is not None:
+            max_workout_reps = workout_reps if max_workout_reps is None else max(max_workout_reps, workout_reps)
+        set_stats = _set_summary(workout)
+        total_sets += set_stats["set_count"]
+        for current, name in (
+            (set_stats["max_weight"], "max_set_weight"),
+            (set_stats["max_one_rep_max"], "max_one_rm"),
+            (set_stats["best_range_of_motion"], "best_rom"),
+            (set_stats["max_power"], "max_power"),
+        ):
+            if current is None:
+                continue
+            if name == "max_set_weight":
+                max_set_weight = current if max_set_weight is None else max(max_set_weight, current)
+            elif name == "max_one_rm":
+                max_one_rm = current if max_one_rm is None else max(max_one_rm, current)
+            elif name == "best_rom":
+                best_rom = current if best_rom is None else max(best_rom, current)
+            else:
+                max_power = current if max_power is None else max(max_power, current)
+
+    for workout in recent:
+        recent_workouts.append({
+            "id": workout.get("id") or workout.get("workoutActivityID"),
+            "begin_time": workout.get("beginTime"),
+            "title": workout.get("workoutTitle"),
+            "type": workout.get("workoutType"),
+            "total_volume": workout.get("totalVolume"),
+            "total_reps": workout.get("totalReps"),
+            "duration": _workout_duration(workout),
+            **_set_summary(workout),
+        })
 
     strength_history = export_data.get("strengthScoreHistory") or []
     strength_latest = strength_history[0] if strength_history else {}
     parsed_current = ((export_data.get("currentStrengthScores") or {}).get("parsed") or {})
 
+    latest_dt = _parse_dt(latest.get("beginTime"))
+    days_since_latest = (now - latest_dt).total_seconds() / 86400 if latest_dt else None
+
     return {
         "exported_at": export_data.get("exportedAt"),
         "profile": {
             "total_workouts": (export_data.get("profile") or {}).get("totalWorkouts", len(workouts)),
-            "total_volume": (export_data.get("profile") or {}).get("totalVolume"),
+            "total_volume": (export_data.get("profile") or {}).get("totalVolume") or volume(workouts),
+            "total_reps": reps(workouts),
+            "total_sets": total_sets,
+            "first_workout": workouts[-1].get("beginTime") if workouts else None,
+            "last_workout": latest.get("beginTime") if latest else None,
+            "days_since_last_workout": round(days_since_latest, 2) if days_since_latest is not None else None,
         },
         "latest_workout": {
             "id": latest.get("id") or latest.get("workoutActivityID"),
@@ -147,14 +290,26 @@ def build_summary(export_data: Dict[str, Any]) -> Dict[str, Any]:
             "type": latest.get("workoutType"),
             "total_volume": latest.get("totalVolume"),
             "total_reps": latest.get("totalReps"),
-            "duration": latest.get("duration") or latest.get("durationSeconds") or latest.get("workoutDuration"),
+            "duration": _workout_duration(latest),
+            **latest_set_summary,
         },
         "rolling": {
-            "workouts_7d": count_since(7),
-            "workouts_30d": count_since(30),
-            "volume_7d": volume_since(7),
-            "volume_30d": volume_since(30),
+            "workouts_7d": windows["7"]["workouts"],
+            "workouts_30d": windows["30"]["workouts"],
+            "volume_7d": windows["7"]["volume"],
+            "volume_30d": windows["30"]["volume"],
+            "windows": windows,
         },
+        "records": {
+            "max_workout_volume": max_workout_volume,
+            "max_workout_reps": max_workout_reps,
+            "max_set_weight": max_set_weight,
+            "max_one_rep_max": max_one_rm,
+            "best_range_of_motion": best_rom,
+            "max_power": max_power,
+        },
+        "workout_types": dict(sorted(workout_types.items())),
+        "recent_workouts": recent_workouts,
         "strength": {
             "overall": strength_latest.get("overall") or (parsed_current.get("regions") or {}).get("Overall"),
             "upper": strength_latest.get("upper") or (parsed_current.get("regions") or {}).get("Upper"),
@@ -162,6 +317,7 @@ def build_summary(export_data: Dict[str, Any]) -> Dict[str, Any]:
             "core": strength_latest.get("core") or (parsed_current.get("regions") or {}).get("Core"),
             "regions": parsed_current.get("regions", {}),
             "muscles": parsed_current.get("muscles", {}),
+            "history": strength_history[:100],
         },
     }
 
