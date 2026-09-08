@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: [main, ha-companion-service]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff
+      - name: Compile Python
+        run: python -m compileall -q sync_workouts.py tonal_service.py custom_components/tonal_companion
+      - name: Lint Python
+        run: ruff check sync_workouts.py tonal_service.py custom_components/tonal_companion
+      - name: Validate JSON metadata
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          for path in [
+              Path('custom_components/tonal_companion/manifest.json'),
+              Path('custom_components/tonal_companion/strings.json'),
+              Path('hacs.json'),
+          ]:
+              json.loads(path.read_text())
+              print(f'valid: {path}')
+          PY
+      - name: Validate Compose file
+        run: docker compose -f docker-compose.example.yml config
