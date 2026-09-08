@@ -1,0 +1,79 @@
+# Example Home Assistant REST sensors for tonal_service.py
+# Include with: rest: !include rest.yaml
+
+- resource: http://host.docker.internal:8787/summary
+  scan_interval: 300
+  timeout: 30
+  sensor:
+    - name: Tonal Service Status
+      unique_id: tonal_service_status
+      value_template: "{{ value_json.status }}"
+      json_attributes:
+        - last_sync
+        - last_error
+
+    - name: Tonal Total Workouts
+      unique_id: tonal_total_workouts
+      value_template: "{{ value_json.summary.profile.total_workouts | int(0) }}"
+      state_class: total
+
+    - name: Tonal Latest Workout
+      unique_id: tonal_latest_workout
+      value_template: "{{ value_json.summary.latest_workout.title or 'Unknown' }}"
+      json_attributes_path: "$.summary.latest_workout"
+      json_attributes:
+        - id
+        - begin_time
+        - type
+        - total_volume
+        - total_reps
+        - duration
+
+    - name: Tonal Workouts 7 Days
+      unique_id: tonal_workouts_7d
+      value_template: "{{ value_json.summary.rolling.workouts_7d | int(0) }}"
+      state_class: measurement
+
+    - name: Tonal Workouts 30 Days
+      unique_id: tonal_workouts_30d
+      value_template: "{{ value_json.summary.rolling.workouts_30d | int(0) }}"
+      state_class: measurement
+
+    - name: Tonal Volume 7 Days
+      unique_id: tonal_volume_7d
+      value_template: "{{ value_json.summary.rolling.volume_7d | float(0) | round(0) }}"
+      unit_of_measurement: lb
+      state_class: measurement
+
+    - name: Tonal Volume 30 Days
+      unique_id: tonal_volume_30d
+      value_template: "{{ value_json.summary.rolling.volume_30d | float(0) | round(0) }}"
+      unit_of_measurement: lb
+      state_class: measurement
+
+    - name: Tonal Strength Score
+      unique_id: tonal_strength_score
+      value_template: "{{ value_json.summary.strength.overall | int(0) }}"
+      state_class: measurement
+      json_attributes_path: "$.summary.strength"
+      json_attributes:
+        - upper
+        - lower
+        - core
+        - regions
+        - muscles
+
+    - name: Tonal Upper Strength Score
+      unique_id: tonal_upper_strength_score
+      value_template: "{{ value_json.summary.strength.upper | int(0) }}"
+      state_class: measurement
+
+    - name: Tonal Lower Strength Score
+      unique_id: tonal_lower_strength_score
+      value_template: "{{ value_json.summary.strength.lower | int(0) }}"
+      state_class: measurement
+
+    - name: Tonal Core Strength Score
+      unique_id: tonal_core_strength_score
+      value_template: "{{ value_json.summary.strength.core | int(0) }}"
+      state_class: measurement
