@@ -1,168 +1,139 @@
-# ToneGet
+# ToneGet for Home Assistant
 
-Export your personal Tonal workout data to JSON for backup, analysis, or use with third-party tools.
+Unofficial Home Assistant integration and local companion service for accessing your own Tonal workout data.
 
-> ⚠️ **Disclaimer**: This is an unofficial, community-built tool. It is not affiliated with, endorsed by, or connected to Tonal Systems, Inc. in any way. Use at your own risk.
+> **Not affiliated with Tonal Systems, Inc.** This is a community project. It is not produced, endorsed, sponsored, or supported by Tonal Systems, Inc. "Tonal" is used only to identify compatibility with the service.
 
-## What This Does
+This repository is a fork of the community **ToneGet** exporter and retains its data-export functionality. This fork adds a local companion service plus a Home Assistant custom integration so workout and Strength Score data can appear as Home Assistant entities.
 
-ToneGet allows you to download **your own** workout history from Tonal's servers using your personal login credentials. The data belongs to you—you created it through your workouts.
+## What it does
 
-**What you get:**
-- Complete workout history (sets, reps, weights, volume, duration)
-- Activity and workout template names for your exported workouts
-- Strength Score history and current muscle-by-muscle breakdown
-- Personal records and progression data
-- Custom workout templates you've created
-- All Tonal-specific metrics (ROM, power, tempo, etc.)
+- Authenticates to Tonal using the same unofficial API workflow used by ToneGet.
+- Keeps your Tonal password out of Git, Docker Compose, and Home Assistant YAML.
+- Lets Home Assistant present a native reauthentication form when Tonal requires login again.
+- Exposes a concise default set of Home Assistant sensors.
+- Creates additional detailed sensors disabled by default so users can opt into richer data.
+- Keeps the companion API local/private; no cloud relay or project telemetry is used.
+
+## Home Assistant entities
+
+Enabled by default:
+
+- Strength Score
+- Upper Strength Score
+- Lower Strength Score
+- Core Strength Score
+- Workouts over 7 days
+- Workouts over 30 days
+- Volume over 7 days
+- Volume over 30 days
+- Total workouts
+- Latest workout
+
+Additional entities are created disabled by default and can be enabled from Home Assistant's entity registry, including service diagnostics, lifetime/latest-workout metrics, Strength Score regions, and individual muscle Strength Scores returned by the API.
+
+## Architecture
+
+```text
+Home Assistant app / UI
+        |
+        v
+Home Assistant custom integration
+        |
+        | private local HTTP
+        v
+ToneGet companion service
+        |
+        | HTTPS authentication/data requests
+        v
+Tonal
+```
+
+The companion service should remain reachable only from the Home Assistant host, LAN, or private Docker network. Do not expose port 8787 publicly.
 
 ## Installation
 
+### 1. Run the companion service
+
 ```bash
-# Clone the repository
-git clone https://github.com/curlrequests/toneget.git
-cd toneget
+git clone https://github.com/jmping/tonalimporter.git
+cd tonalimporter
+cp docker-compose.example.yml docker-compose.yml
+docker compose up -d --build
+```
 
-# Install dependencies
+No Tonal password is stored in the Compose file. Before authentication, this should report `auth_required`:
+
+```bash
+curl http://127.0.0.1:8787/health
+```
+
+### 2. Install the Home Assistant custom integration
+
+Copy:
+
+```text
+custom_components/tonal_companion/
+```
+
+into:
+
+```text
+/config/custom_components/tonal_companion/
+```
+
+Restart Home Assistant, then go to **Settings > Devices & services > Add Integration** and search for **ToneGet for Home Assistant**.
+
+For a Docker-based Home Assistant installation on the same host, the companion URL will commonly be one of:
+
+```text
+http://tonalimporter:8787
+http://host.docker.internal:8787
+```
+
+See [HA_SETUP.md](HA_SETUP.md) for more detail.
+
+## Authentication and privacy
+
+When authentication is required, Home Assistant presents email/password fields in its native UI. The credentials are sent over your private local connection to the companion service, used for the Tonal authentication exchange, and the password is not persisted by this project.
+
+The companion service stores only returned Tonal token material in its private data volume. Treat that token as sensitive. No analytics, telemetry, or developer-hosted backend is used.
+
+See [SECURITY.md](SECURITY.md) for security guidance.
+
+## HACS
+
+The custom integration includes HACS metadata for users who prefer HACS-based installation. During the beta period, manual installation remains the most predictable path because the companion service must still be deployed separately.
+
+## ToneGet exporter
+
+The original ToneGet command-line exporter remains available:
+
+```bash
 python3 -m pip install -r requirements.txt
-
-# Run the script
 python3 sync_workouts.py
 ```
 
-**Options:**
+It can export workout history, sets/reps/weights/volume, Strength Score data, custom workout metadata, and other workout metrics to JSON.
 
-```bash
-python sync_workouts.py              # Standard export (trimmed, compressed)
-python sync_workouts.py --full       # Include all raw API fields
-python sync_workouts.py --no-gzip    # Skip compression (JSON only)
-```
+## Upstream attribution
 
-## Usage
+This project is derived from the ToneGet project originally published at:
 
-1. Enter your Tonal email and password
-2. Wait for the download to complete (usually under a minute)
-3. Your data is saved to `tonal_workouts_YYYYMMDD_HHMMSS.json.gz`
+- https://github.com/curlrequests/toneget
 
-Your credentials are only used to authenticate directly with Tonal's servers—they are never stored or transmitted anywhere else.
+The ToneGet exporter code and this fork are distributed under the MIT License. Existing upstream license and disclaimer terms are preserved in [LICENSE](LICENSE).
 
-## Output Format
+## Terms and service risk
 
-The export includes:
+This project relies on an unofficial authentication/API workflow. Tonal may change its API or authentication behavior at any time, and automated access may be restricted by Tonal's terms or technical controls. Use this software at your own risk and only with accounts/data you are authorized to access.
 
-```json
-{
-  "version": "3.0",
-  "exportedAt": "2025-01-15T10:30:00Z",
-  "user": { "firstName": "...", "lastName": "..." },
-  "profile": { "totalWorkouts": 150, "totalVolume": 500000 },
-  "workouts": [
-    {
-      "id": "...",
-      "beginTime": "2025-01-15T08:00:00Z",
-      "workoutType": "PROGRAM",
-      "workoutTitle": "Full Body Strength",
-      "totalVolume": 5000,
-      "totalReps": 100,
-      "workoutSetActivity": [
-        {
-          "movementId": "...",
-          "weight": 85,
-          "repCount": 10,
-          "oneRepMax": 113,
-          "rangeOfMotion": 0.94
-        }
-      ]
-    }
-  ],
-  "activityNames": { "activity-id": "Full Body Strength" },
-  "workoutCatalog": {
-    "workout-template-id": {
-      "id": "workout-template-id",
-      "title": "Full Body Strength",
-      "workoutType": "PROGRAM"
-    }
-  },
-  "customWorkouts": { ... },
-  "strengthScoreHistory": [ ... ],
-  "currentStrengthScores": {
-    "parsed": {
-      "regions": { "Overall": 487, "Upper": 512, "Lower": 445, "Core": 398 },
-      "muscles": { "Chest": { "score": 523 }, "Back": { "score": 498 }, ... }
-    }
-  }
-}
-```
+This project does not attempt to download or redistribute Tonal instructional videos, coaching content, or other proprietary service content.
 
-## Using Your Data
+## Development status
 
-Your export is a standard JSON file containing your complete workout history. Back it up, analyze it with your own tools, or use it with third-party services that work with structured fitness data. It's your data—do what you want with it.
-
-## Legal Notice
-
-### Your Data Rights
-
-You have a right to access your own personal data. This tool helps you exercise that right by downloading data you created through your own physical activity on equipment you own or lease.
-
-### Important Distinction: Your Data vs. Service Content
-
-1. **Your workout data** - The records you created through your physical activity: timestamps, reps, sets, weights, volume, personal records. This is *your* data.
-
-2. **Service content** - Tonal's proprietary materials like workout programs, instructional videos, coach content, and the movement library. This tool does **not** download or redistribute any of this.
-
-### Terms of Service Considerations
-
-Tonal's Terms of Service contain provisions about automated access. These provisions target scraping of proprietary content—not users accessing their own workout history. However:
-
-- **This tool is provided "as is"** with no warranty
-- **You assume all risk** associated with using this tool
-- We make no claims about the legality of this tool in your jurisdiction
-
-### What This Tool Does NOT Do
-
-- ❌ Access other users' data
-- ❌ Store or transmit your credentials anywhere except Tonal
-- ❌ Download Tonal's workout programs or instructional content
-- ❌ Bypass any security measures
-- ❌ Redistribute any of Tonal's proprietary content
-
-## Privacy & Security
-
-- Credentials are sent directly to Tonal's Auth0 servers over HTTPS
-- Credentials are never logged, stored, or sent anywhere except Tonal
-- Uses the same OAuth2 authentication as Tonal's official app
-- All code is open source and auditable
-
-## Contributing
-
-Contributions are welcome!
-
-- ⭐ Star the repository if you find it useful
-- 🐛 Report bugs or issues
-- 💡 Suggest features
-- 🔀 Submit pull requests
-
-## FAQ
-
-**Q: Is this safe to use?**  
-A: The tool only accesses your own data using your Tonal credentials. However, automated access may conflict with Tonal's Terms of Service. Use at your own discretion.
-
-**Q: Will Tonal ban my account?**  
-A: We don't know. The tool makes a relatively small number of API requests (similar to normal app usage), but there's always some risk with unofficial tools.
-
-**Q: Why not just use the Tonal app?**  
-A: The Tonal app doesn't provide data export functionality. This tool lets you backup your data, perform custom analysis, or use it with other fitness tools.
-
-**Q: Why is the file so small after compression?**  
-A: Workout data compresses extremely well (often 85-90% smaller) because it has lots of repeated field names and similar values.
-
-**Q: Can I automate this to run regularly?**  
-A: Yes! The script can be run via cron or Task Scheduler. Just store your credentials securely (environment variables, not in the script).
+The Home Assistant integration is currently **beta software**. Before filing an issue, update to the latest release/branch and reproduce the problem. Do not post passwords, tokens, full exported workout files, or other sensitive personal data in issues.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
-
----
-
-**Remember:** This is your data. You created it. You have a right to it.
+MIT License. See [LICENSE](LICENSE).
