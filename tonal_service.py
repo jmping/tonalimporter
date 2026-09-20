@@ -26,6 +26,8 @@ from sync_workouts import (
     get_strength_score_history,
     get_user_info,
     get_user_profile,
+    refresh_authentication,
+    TonalAuthenticationError,
 )
 
 HOST = os.getenv("TONAL_SERVICE_HOST", "0.0.0.0")
@@ -330,6 +332,58 @@ def authenticate_interactively(email: str, password: str) -> None:
     sync_once()
 
 
+def _refresh_saved_tokens() -> bool:
+    with _token_lock:
+        refresh_token = _tokens.get("refresh_token")
+        previous_tokens = dict(_tokens)
+
+    if not refresh_token:
+        return False
+
+    refreshed = refresh_authentication(refresh_token)
+    if not refreshed.get("id_token"):
+        raise TonalAuthenticationError("Tonal token refresh did not return an id_token")
+
+    if not refreshed.get("refresh_token"):
+        refreshed["refresh_token"] = refresh_token
+
+    merged = {**previous_tokens, **refreshed}
+    _set_tokens(merged)
+    return True
+
+
+def _sync_with_token(id_token: str) -> None:
+    user_info = get_user_info(id_token)
+    user_id = user_info.get("id")
+    profile = get_user_profile(id_token, user_id)
+    workouts = download_workouts(id_token, user_id)
+    workout_catalog = fetch_workout_catalog(id_token, workouts)
+    apply_workout_titles(workouts, workout_catalog)
+    workouts.sort(key=lambda x: x.get("beginTime", ""), reverse=True)
+
+    export_data = {
+        "version": "3.0",
+        "exportedAt": datetime.now(timezone.utc).isoformat(),
+        "user": user_info,
+        "profile": profile,
+        "workouts": workouts,
+        "activityNames": build_activity_names(workouts),
+        "workoutCatalog": workout_catalog,
+        "customWorkouts": build_custom_workouts(workouts, workout_catalog),
+        "strengthScoreHistory": get_strength_score_history(id_token, user_id),
+        "currentStrengthScores": get_current_strength_scores(id_token, user_id),
+    }
+    summary = build_summary(export_data)
+    with _state_lock:
+        _state.update({
+            "status": "ok",
+            "auth_required": False,
+            "last_sync": datetime.now(timezone.utc).isoformat(),
+            "last_error": None,
+            "summary": summary,
+        })
+
+
 def sync_once() -> None:
     with _token_lock:
         id_token = _tokens.get("id_token")
@@ -338,42 +392,23 @@ def sync_once() -> None:
         return
 
     try:
-        user_info = get_user_info(id_token)
-        user_id = user_info.get("id")
-        profile = get_user_profile(id_token, user_id)
-        workouts = download_workouts(id_token, user_id)
-        workout_catalog = fetch_workout_catalog(id_token, workouts)
-        apply_workout_titles(workouts, workout_catalog)
-        workouts.sort(key=lambda x: x.get("beginTime", ""), reverse=True)
-
-        export_data = {
-            "version": "3.0",
-            "exportedAt": datetime.now(timezone.utc).isoformat(),
-            "user": user_info,
-            "profile": profile,
-            "workouts": workouts,
-            "activityNames": build_activity_names(workouts),
-            "workoutCatalog": workout_catalog,
-            "customWorkouts": build_custom_workouts(workouts, workout_catalog),
-            "strengthScoreHistory": get_strength_score_history(id_token, user_id),
-            "currentStrengthScores": get_current_strength_scores(id_token, user_id),
-        }
-        summary = build_summary(export_data)
-        with _state_lock:
-            _state.update({
-                "status": "ok",
-                "auth_required": False,
-                "last_sync": datetime.now(timezone.utc).isoformat(),
-                "last_error": None,
-                "summary": summary,
-            })
+        _sync_with_token(id_token)
+    except TonalAuthenticationError:
+        try:
+            if not _refresh_saved_tokens():
+                _clear_tokens("Tonal authentication expired and no refresh token is available")
+                return
+            with _token_lock:
+                refreshed_id_token = _tokens.get("id_token")
+            _sync_with_token(refreshed_id_token)
+        except TonalAuthenticationError:
+            _clear_tokens("Tonal authentication expired and refresh was rejected")
+        except Exception as exc:  # noqa: BLE001
+            with _state_lock:
+                _state.update({"status": "error", "last_error": str(exc)})
     except Exception as exc:  # noqa: BLE001
-        message = str(exc)
-        if "401" in message or "403" in message or "token" in message.lower():
-            _clear_tokens("Tonal authentication expired or was rejected")
-            return
         with _state_lock:
-            _state.update({"status": "error", "last_error": message})
+            _state.update({"status": "error", "last_error": str(exc)})
 
 
 def sync_loop() -> None:
