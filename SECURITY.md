@@ -16,7 +16,7 @@ When authentication is required:
 4. The password is not written to disk by this project.
 5. Returned Tonal token material is persisted in the companion service data volume so future syncs can run without storing/re-entering the password.
 
-Treat the token file as sensitive. The service writes it with restrictive permissions (`0600`).
+Treat the token file as sensitive. The service writes it with restrictive permissions (`0600`). When a refresh token is available, the companion may use it to renew authentication automatically. Repeated confirmed authentication failures can cause Home Assistant to request reauthentication, but the companion intentionally retains saved token material so it can continue retrying and recover automatically if those credentials become usable again.
 
 The original standalone `sync_workouts.py` exporter uses credentials interactively and does not require the companion service token persistence model.
 

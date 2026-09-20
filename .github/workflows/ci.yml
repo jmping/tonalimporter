@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, expand-ha-data]
+    branches: [main]
   pull_request:
 
 permissions:

@@ -1,121 +1,160 @@
-# Contributing to ToneGet
+# Contributing to ToneGet for Home Assistant
 
-Thank you for your interest in contributing! This project helps Tonal users access and backup their own workout data.
+Thank you for considering a contribution. ToneGet for Home Assistant is an unofficial community project that combines three related pieces:
 
-## Project Structure
+- the original ToneGet-style personal workout exporter (`sync_workouts.py`);
+- a local companion service (`tonal_service.py`) that handles authentication, synchronization, and summary generation;
+- a Home Assistant custom integration under `custom_components/tonal_companion/`.
 
-```
-toneget/
-├── sync_workouts.py      # Python CLI tool
-├── requirements.txt      # Python dependencies
+The project is intentionally open to review and improvement. The Home Assistant bridge was developed collaboratively with an AI coding assistant, then iterated against a real installation, so careful human review, testing, and simplification are especially welcome.
+
+## Before you start
+
+Please read [SECURITY.md](SECURITY.md) before changing authentication, token handling, networking, logging, or diagnostics.
+
+Do not include passwords, access tokens, refresh tokens, raw workout exports, email addresses, workout IDs, or other private account data in issues, pull requests, tests, screenshots, or logs.
+
+This project is not affiliated with, endorsed by, or supported by Tonal Systems, Inc. Contributions must not imply official Tonal support or branding.
+
+## Project layout
+
+```text
+tonalimporter/
+├── custom_components/tonal_companion/   # Home Assistant integration
+├── tests/                               # regression/unit tests
+├── sync_workouts.py                     # standalone exporter
+├── tonal_service.py                     # local companion HTTP service
+├── docker-compose.example.yml           # companion deployment example
+├── HA_SETUP.md                          # Home Assistant setup details
 ├── README.md
-├── LICENSE
+├── RELEASE_NOTES.md
 ├── SECURITY.md
 └── CONTRIBUTING.md
 ```
 
-## How to Contribute
+## Reporting bugs
 
-### Reporting Bugs
+Use the GitHub bug-report template when possible. Include:
 
-1. Check if the issue already exists in [Issues](../../issues)
-2. If not, create a new issue with:
-   - A clear, descriptive title
-   - Steps to reproduce the problem
-   - Expected vs actual behavior
-   - Your Python version and OS
-   - Any error messages (with sensitive info redacted)
+- Home Assistant version;
+- ToneGet for Home Assistant version or commit;
+- installation type;
+- companion deployment method;
+- exact reproduction steps;
+- sanitized logs;
+- expected and observed behavior.
 
-### Suggesting Features
+If the problem concerns authentication, say whether the companion currently reports `auth_required`, but never post token contents.
 
-Open an issue with the `enhancement` label describing:
-- What problem it solves
-- How you envision it working
-- Any alternatives you've considered
+## Suggesting features
 
-### Submitting Code
+Open a feature request and describe the user-facing problem first. For new Home Assistant entities, also note whether the entity should be enabled by default or opt-in.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Make your changes
-4. Test thoroughly
-5. Commit with clear messages (`git commit -m 'Add amazing feature'`)
-6. Push to your fork (`git push origin feature/amazing-feature`)
-7. Open a Pull Request
+Prefer deriving additional metrics from data already downloaded by the companion instead of adding unnecessary Tonal API calls.
 
-## Development Setup
+## Submitting code
+
+1. Fork the repository.
+2. Create a focused branch.
+3. Make the smallest coherent change.
+4. Add or update tests where practical.
+5. Run the validation steps below.
+6. Open a pull request against `main`.
+
+Keep pull requests narrowly scoped. Large refactors should explain why they are necessary and how compatibility is preserved.
+
+## Development setup
 
 ```bash
-# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
-
-# Install dependencies
+source venv/bin/activate
+python -m pip install --upgrade pip
 pip install -r requirements.txt
-
-# Run
-python sync_workouts.py
+pip install ruff pytest
 ```
 
-## Code Guidelines
+On Windows, activate the virtual environment with the equivalent `venv\Scripts\activate` command.
 
-### Python Style
-- Follow PEP 8
-- Use type hints where helpful
-- Use meaningful variable names
-- Add docstrings for functions
-- Keep functions focused and small
+## Validation
 
-### Security (Critical)
-- **Never** log or store credentials
-- **Never** include API keys or secrets
-- Sanitize any user data in error messages
-- Use HTTPS for all external requests
-- Only connect to `tonal.auth0.com` and `api.tonal.com`
+Before opening a pull request, run as much of the following as your environment supports:
 
-### Privacy
-- Only access the authenticated user's own data
-- Don't add features that could access other users' data
-- Respect user privacy in all additions
+```bash
+python -m compileall -q sync_workouts.py tonal_service.py custom_components/tonal_companion tests
+ruff check tonal_service.py custom_components/tonal_companion tests --ignore EXE001,UP006,UP035,UP045,RUF100,UP031
+python -m pytest -q tests
+docker compose -f docker-compose.example.yml config
+```
 
-## What We're Looking For
+GitHub Actions also runs:
 
-### High Priority
-- Bug fixes
-- Cross-platform compatibility improvements
-- Error handling improvements
-- Documentation improvements
+- CI on Python 3.12 and 3.13;
+- HACS validation;
+- Home Assistant Hassfest validation.
 
-### Welcome Additions
-- Better progress indicators
-- Output format options (CSV, etc.)
-- Data validation
-- Unit tests
-- Localization/i18n
+Pull requests should leave all three green unless there is a documented reason a check cannot apply.
 
-### Out of Scope
-- Features that access non-user data
-- Downloading Tonal's proprietary content (programs, videos, coaches, etc.)
-- Anything that could be used to scrape Tonal's platform at scale
-- Features requiring reverse engineering beyond personal data access
-- Integration with paid services (keep it free and open)
+## Home Assistant conventions
 
-## Testing
+For changes under `custom_components/tonal_companion/`:
 
-Before submitting a PR:
-1. Test with your own Tonal account (if you have one)
-2. Verify exports are valid JSON
-3. Ensure no credentials are logged or stored
+- keep entity IDs and unique IDs stable whenever possible;
+- use Home Assistant-native config-entry and reauthentication patterns;
+- prefer disabled-by-default entities for niche or attribute-heavy data;
+- avoid unbounded attributes that could inflate the recorder database;
+- use appropriate device classes, state classes, and units where applicable;
+- keep `strings.json` and packaged translations consistent;
+- do not expose tokens or private workout payloads in diagnostics.
 
-## Code of Conduct
+## Companion-service conventions
 
-- Be respectful and inclusive
-- Focus on constructive feedback
-- Help others learn and grow
-- Keep discussions on-topic
+The companion service is local infrastructure, not a public internet service.
 
-## Questions?
+- Keep authentication and summary endpoints private by default.
+- Do not add public exposure as a default.
+- Treat saved token material as sensitive.
+- Preserve refresh-token support and retry/recovery behavior.
+- Distinguish authentication failures from transient API/network failures.
+- Do not clear usable saved credentials merely because one sync attempt failed.
+- Avoid additional Tonal requests when equivalent data can be computed locally.
 
-Open an issue with the `question` label or start a discussion.
+## Security and privacy
 
-Thank you for helping make this tool better! 🏋️
+Security-sensitive changes should be conservative.
+
+- Never log credentials or token material.
+- Never commit real account data.
+- Use HTTPS for external Tonal/Auth0 requests.
+- Sanitize exception messages before exposing them to Home Assistant.
+- Keep the local companion API constrained to a trusted host/LAN/private network.
+- Do not add analytics, telemetry, or a developer-hosted relay without explicit discussion.
+
+## Scope
+
+Good contributions include:
+
+- bug fixes and regression tests;
+- Home Assistant compatibility improvements;
+- better auth-recovery behavior;
+- additional locally derived metrics;
+- documentation improvements;
+- recorder-impact reductions;
+- diagnostics that are safe to share;
+- packaging and release improvements.
+
+Out of scope includes:
+
+- bulk scraping or access to other users' data;
+- redistribution of Tonal instructional media or proprietary service content;
+- features designed to bypass account controls or platform restrictions;
+- changes that expose the companion service publicly by default.
+
+## Licensing and attribution
+
+Contributions are accepted under the repository's MIT License. This fork is derived from the community ToneGet project; preserve applicable attribution and do not remove upstream history merely for cosmetic reasons.
+
+See [DISCLAIMER.md](DISCLAIMER.md) for supplemental project guidance.
+
+## Questions
+
+If something is unclear, open an issue. For security-sensitive matters, follow the private-reporting guidance in [SECURITY.md](SECURITY.md).

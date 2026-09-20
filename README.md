@@ -98,7 +98,7 @@ https://github.com/jmping/tonalimporter
 
 Then install **ToneGet for Home Assistant** and restart Home Assistant.
 
-The companion service is still a separate Docker service; HACS installs only the Home Assistant custom component.
+The companion service is still a separate Docker service; HACS installs and updates only the Home Assistant custom component. Companion-service changes require updating and rebuilding the local companion separately.
 
 For a Docker-based Home Assistant installation on the same host, the companion URL will commonly be one of:
 
@@ -150,7 +150,7 @@ This project is derived from the ToneGet project originally published at:
 
 - https://github.com/curlrequests/toneget
 
-The ToneGet exporter code and this fork are distributed under the MIT License. Existing upstream license and disclaimer terms are preserved in [LICENSE](LICENSE).
+The ToneGet exporter code and this fork are distributed under the MIT License. See [LICENSE](LICENSE) for the license text and [DISCLAIMER.md](DISCLAIMER.md) for supplemental project guidance.
 
 ## Terms and service risk
 

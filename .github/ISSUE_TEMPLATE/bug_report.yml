@@ -18,7 +18,7 @@ body:
     id: integration_version
     attributes:
       label: Integration version / commit
-      placeholder: 0.2.0 or commit SHA
+      placeholder: 0.3.3 or commit SHA
     validations:
       required: true
   - type: dropdown
@@ -30,6 +30,14 @@ body:
         - Home Assistant Container
         - Home Assistant Supervised
         - Other
+    validations:
+      required: true
+  - type: input
+    id: companion_version
+    attributes:
+      label: Companion version / commit
+      description: If the issue involves the local companion service, provide its release or commit. Enter N/A if not applicable.
+      placeholder: v0.3.3-beta.1, commit SHA, or N/A
     validations:
       required: true
   - type: textarea
