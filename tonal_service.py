@@ -33,6 +33,7 @@ from sync_workouts import (
 HOST = os.getenv("TONAL_SERVICE_HOST", "0.0.0.0")
 PORT = int(os.getenv("TONAL_SERVICE_PORT", "8787"))
 SYNC_INTERVAL_MINUTES = int(os.getenv("TONAL_SYNC_INTERVAL_MINUTES", "180"))
+AUTH_FAILURE_THRESHOLD = int(os.getenv("TONAL_AUTH_FAILURE_THRESHOLD", "3"))
 TOKEN_FILE = os.getenv("TONAL_TOKEN_FILE", "/data/tonal_token.json")
 
 _state_lock = threading.Lock()
@@ -41,6 +42,7 @@ _state: Dict[str, Any] = {
     "auth_required": True,
     "last_sync": None,
     "last_error": None,
+    "auth_failures": 0,
     "summary": {},
 }
 
@@ -102,7 +104,25 @@ def _set_tokens(tokens: Dict[str, Any]) -> None:
         _tokens = tokens
     _save_tokens(tokens)
     with _state_lock:
-        _state.update({"auth_required": False, "status": "starting", "last_error": None})
+        _state.update({
+            "auth_required": False,
+            "status": "starting",
+            "last_error": None,
+            "auth_failures": 0,
+        })
+
+
+def _record_auth_failure(error: str) -> bool:
+    """Record an auth failure; return True when reauthentication is required."""
+    with _state_lock:
+        failures = int(_state.get("auth_failures", 0)) + 1
+        _state.update({
+            "status": "error",
+            "auth_required": False,
+            "auth_failures": failures,
+            "last_error": f"{error} (attempt {failures}/{AUTH_FAILURE_THRESHOLD})",
+        })
+    return failures >= AUTH_FAILURE_THRESHOLD
 
 
 def _clear_tokens(error: Optional[str] = None) -> None:
@@ -118,6 +138,7 @@ def _clear_tokens(error: Optional[str] = None) -> None:
             "status": "auth_required",
             "auth_required": True,
             "last_error": error,
+            "auth_failures": AUTH_FAILURE_THRESHOLD,
         })
 
 
@@ -380,6 +401,7 @@ def _sync_with_token(id_token: str) -> None:
             "auth_required": False,
             "last_sync": datetime.now(timezone.utc).isoformat(),
             "last_error": None,
+            "auth_failures": 0,
             "summary": summary,
         })
 
@@ -396,13 +418,15 @@ def sync_once() -> None:
     except TonalAuthenticationError:
         try:
             if not _refresh_saved_tokens():
-                _clear_tokens("Tonal authentication expired and no refresh token is available")
+                if _record_auth_failure("Tonal authentication expired and no refresh token is available"):
+                    _clear_tokens("Tonal authentication failed repeatedly; reauthentication is required")
                 return
             with _token_lock:
                 refreshed_id_token = _tokens.get("id_token")
             _sync_with_token(refreshed_id_token)
         except TonalAuthenticationError:
-            _clear_tokens("Tonal authentication expired and refresh was rejected")
+            if _record_auth_failure("Tonal authentication refresh was rejected"):
+                _clear_tokens("Tonal authentication failed repeatedly; reauthentication is required")
         except Exception as exc:  # noqa: BLE001
             with _state_lock:
                 _state.update({"status": "error", "last_error": str(exc)})
