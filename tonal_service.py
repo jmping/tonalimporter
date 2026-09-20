@@ -16,6 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional
 
 from sync_workouts import (
+    TonalAuthenticationError,
     apply_workout_titles,
     authenticate,
     build_activity_names,
@@ -27,7 +28,6 @@ from sync_workouts import (
     get_user_info,
     get_user_profile,
     refresh_authentication,
-    TonalAuthenticationError,
 )
 
 HOST = os.getenv("TONAL_SERVICE_HOST", "0.0.0.0")
