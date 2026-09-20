@@ -1,14 +1,14 @@
 {
   "domain": "tonal_companion",
   "name": "ToneGet for Home Assistant",
-  "version": "0.3.2",
-  "documentation": "https://github.com/jmping/tonalimporter",
-  "config_flow": true,
-  "iot_class": "local_polling",
-  "requirements": [],
-  "issue_tracker": "https://github.com/jmping/tonalimporter/issues",
   "codeowners": [
     "@jmping"
   ],
-  "integration_type": "service"
+  "config_flow": true,
+  "documentation": "https://github.com/jmping/tonalimporter",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "issue_tracker": "https://github.com/jmping/tonalimporter/issues",
+  "requirements": [],
+  "version": "0.3.2"
 }
