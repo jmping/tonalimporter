@@ -125,14 +125,8 @@ def _record_auth_failure(error: str) -> bool:
     return failures >= AUTH_FAILURE_THRESHOLD
 
 
-def _clear_tokens(error: Optional[str] = None) -> None:
-    global _tokens
-    with _token_lock:
-        _tokens = {}
-    try:
-        os.remove(TOKEN_FILE)
-    except FileNotFoundError:
-        pass
+def _require_reauth(error: Optional[str] = None) -> None:
+    """Request reauthentication without discarding tokens that may recover."""
     with _state_lock:
         _state.update({
             "status": "auth_required",
@@ -140,6 +134,18 @@ def _clear_tokens(error: Optional[str] = None) -> None:
             "last_error": error,
             "auth_failures": AUTH_FAILURE_THRESHOLD,
         })
+
+
+def _clear_tokens(error: Optional[str] = None) -> None:
+    """Discard tokens only when there are no usable saved credentials."""
+    global _tokens
+    with _token_lock:
+        _tokens = {}
+    try:
+        os.remove(TOKEN_FILE)
+    except FileNotFoundError:
+        pass
+    _require_reauth(error)
 
 
 def _workout_duration(workout: dict) -> Any:
@@ -419,7 +425,7 @@ def sync_once() -> None:
         try:
             if not _refresh_saved_tokens():
                 if _record_auth_failure("Tonal authentication expired and no refresh token is available"):
-                    _clear_tokens("Tonal authentication failed repeatedly; reauthentication is required")
+                    _require_reauth("Tonal authentication failed repeatedly; reauthentication is required")
                 return
             with _token_lock:
                 refreshed_id_token = _tokens.get("id_token")
