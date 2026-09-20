@@ -432,7 +432,7 @@ def sync_once() -> None:
             _sync_with_token(refreshed_id_token)
         except TonalAuthenticationError:
             if _record_auth_failure("Tonal authentication refresh was rejected"):
-                _clear_tokens("Tonal authentication failed repeatedly; reauthentication is required")
+                _require_reauth("Tonal authentication failed repeatedly; reauthentication is required")
         except Exception as exc:  # noqa: BLE001
             with _state_lock:
                 _state.update({"status": "error", "last_error": str(exc)})
