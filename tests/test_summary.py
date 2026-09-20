@@ -138,4 +138,16 @@ def test_reauth_only_after_three_consecutive_auth_failures(monkeypatch, tmp_path
     tonal_service.sync_once()
     assert tonal_service._state["auth_failures"] == 3
     assert tonal_service._state["auth_required"] is True
-    assert tonal_service._tokens == {}
+    assert tonal_service._tokens["id_token"] == "expired"
+    assert tonal_service._tokens["refresh_token"] == "bad-refresh"
+
+    # A later successful retry with the saved credentials clears the reauth state.
+    monkeypatch.setattr(tonal_service, "_sync_with_token", lambda _token: tonal_service._state.update({
+        "status": "ok",
+        "auth_required": False,
+        "auth_failures": 0,
+        "last_error": None,
+    }))
+    tonal_service.sync_once()
+    assert tonal_service._state["auth_required"] is False
+    assert tonal_service._state["auth_failures"] == 0
