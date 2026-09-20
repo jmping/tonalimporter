@@ -116,6 +116,38 @@ def trim_export(data: dict) -> dict:
 # AUTHENTICATION & API
 # ============================================================================
 
+class TonalAuthenticationError(Exception):
+    """Raised when Tonal rejects an access token."""
+
+
+def _raise_for_api_auth(response) -> None:
+    if response.status_code in (401, 403):
+        raise TonalAuthenticationError(f"Tonal API rejected authentication: {response.status_code}")
+
+
+def refresh_authentication(refresh_token: str) -> dict:
+    """Exchange a Tonal/Auth0 refresh token for a fresh token set."""
+    try:
+        response = requests.post(
+            f"https://{AUTH0_DOMAIN}/oauth/token",
+            json={
+                "grant_type": "refresh_token",
+                "client_id": CLIENT_ID,
+                "refresh_token": refresh_token,
+            },
+            timeout=30,
+        )
+    except requests.exceptions.RequestException as e:
+        raise ConnectionError(f"Failed to refresh Tonal authentication: {e}") from e
+
+    if response.status_code in (400, 401, 403):
+        raise TonalAuthenticationError("Tonal refresh token was rejected")
+    if response.status_code != 200:
+        raise ConnectionError(f"Tonal token refresh failed with status {response.status_code}")
+
+    return response.json()
+
+
 def authenticate(email: str, password: str) -> dict:
     """
     Authenticate with Tonal using OAuth2 Resource Owner Password Grant.
@@ -156,6 +188,7 @@ def get_user_info(id_token: str) -> dict:
     headers = {"Authorization": f"Bearer {id_token}"}
     response = requests.get(f"{API_BASE}/v6/users/userinfo", headers=headers, timeout=30)
     
+    _raise_for_api_auth(response)
     if response.status_code != 200:
         raise Exception(f"Failed to get user info: {response.status_code}")
     
@@ -198,6 +231,7 @@ def download_workouts(id_token: str, user_id: str) -> List[Dict[Any, Any]]:
     
     response = requests.get(base_url, headers=headers, timeout=30)
     
+    _raise_for_api_auth(response)
     if response.status_code != 200:
         raise Exception(f"Failed to fetch workouts: {response.status_code}")
     
@@ -219,6 +253,7 @@ def download_workouts(id_token: str, user_id: str) -> List[Dict[Any, Any]]:
         
         response = requests.get(base_url, headers=headers, timeout=30)
         
+        _raise_for_api_auth(response)
         if response.status_code != 200:
             print(f"⚠️  Error at offset {offset}, continuing...")
             offset += limit
@@ -252,6 +287,7 @@ def get_workout_template(id_token: str, workout_id: str) -> dict:
         timeout=30
     )
     
+    _raise_for_api_auth(response)
     if response.status_code != 200:
         return None
     
@@ -369,6 +405,7 @@ def get_strength_score_history(id_token: str, user_id: str) -> List[dict]:
         timeout=30
     )
     
+    _raise_for_api_auth(response)
     if response.status_code != 200:
         print(f"   ⚠️ Failed to fetch strength score history: {response.status_code}")
         return []
@@ -402,6 +439,7 @@ def get_current_strength_scores(id_token: str, user_id: str) -> dict:
         timeout=30
     )
     
+    _raise_for_api_auth(response)
     if response.status_code != 200:
         print(f"   ⚠️ Failed to fetch current strength scores: {response.status_code}")
         return {}
