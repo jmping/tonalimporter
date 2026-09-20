@@ -1,5 +1,53 @@
 # Release notes
 
+## v0.3.3-beta.1
+
+Release candidate for the next public beta of **ToneGet for Home Assistant**.
+
+### Authentication and recovery
+
+- Added refresh-token support when Tonal/Auth0 returns a refresh token.
+- Refreshes saved authentication and retries synchronization before requiring a password again.
+- Distinguishes confirmed authentication failures from transient network/API failures.
+- Stops clearing saved token material on generic errors that merely contain words such as `token`.
+- Adds a consecutive authentication-failure threshold, defaulting to three failures before Home Assistant is asked to reauthenticate.
+- Keeps saved credentials after the reauthentication threshold so the companion can continue retrying automatically.
+- Clears `auth_required` and the failure counter automatically if those saved credentials begin working again.
+- Preserves rotated or non-rotated refresh tokens returned by the service.
+
+### HACS and Home Assistant readiness
+
+- Added HACS validation and Home Assistant Hassfest workflows.
+- Added packaged English translations and aligned the integration display name with **ToneGet for Home Assistant**.
+- Added manifest metadata including `issue_tracker`, `codeowners`, and `integration_type`.
+- Restored a standard MIT `LICENSE` file and separated supplemental disclaimer text into `DISCLAIMER.md`.
+- Repository metadata now includes HACS-friendly topics and an updated description.
+- HACS validation, Hassfest, and CI all pass on the release-preparation branch.
+
+### Installation and upgrades
+
+HACS installs and updates the Home Assistant custom integration only.
+
+The companion service remains a separate local Docker service. Releases that contain companion changes still require updating the local checkout and rebuilding/restarting the companion container.
+
+### Documentation
+
+- Updated setup, contribution, security, and release documentation to match the current architecture and authentication behavior.
+- Clarified the separation between the MIT license and supplemental disclaimer.
+- Clarified the HACS-versus-companion upgrade path.
+
+### Beta caveats
+
+- The project relies on an unofficial Tonal authentication/API workflow and can break if Tonal changes its service.
+- Some metrics depend on fields present in the data returned for a particular account or workout type.
+- This remains community-built, vibecoded beta software and benefits from independent review and testing.
+
+### Attribution
+
+This repository is derived from the community ToneGet exporter at `curlrequests/toneget`. Tonal and Home Assistant trademarks belong to their respective owners.
+
+---
+
 ## v0.3.1-beta.1
 
 First public beta of **ToneGet for Home Assistant**.
