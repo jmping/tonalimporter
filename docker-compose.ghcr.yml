@@ -1,0 +1,20 @@
+# Install: docker compose -f docker-compose.ghcr.yml up -d
+# Pull updates: docker compose -f docker-compose.ghcr.yml pull && docker compose -f docker-compose.ghcr.yml up -d
+# Companion listens only on the Docker host's loopback interface by default.
+# To connect HA in another container, attach both containers to a trusted shared network.
+services:
+  tonalimporter:
+    image: ghcr.io/jmping/tonalimporter:edge
+    container_name: tonalimporter
+    restart: unless-stopped
+    environment:
+      TONAL_SYNC_INTERVAL_MINUTES: ${TONAL_SYNC_INTERVAL_MINUTES:-180}
+      TONAL_SERVICE_PORT: 8787
+      TONAL_TOKEN_FILE: /data/tonal_token.json
+    volumes:
+      - tonalimporter_data:/data
+    ports:
+      - "127.0.0.1:8787:8787"
+
+volumes:
+  tonalimporter_data:
