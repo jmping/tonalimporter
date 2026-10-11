@@ -71,6 +71,37 @@ Tonal
 
 The companion service should remain reachable only from the Home Assistant host, LAN, or private Docker network. Do not expose port 8787 publicly.
 
+## Quick start: Home Assistant + Docker
+
+**Important:** HACS installs the Home Assistant integration, but a separate **ToneGet companion service** must be running first. It cannot be installed or upgraded by HACS.
+
+**Prerequisites:** a running Home Assistant instance, HACS, and an always-on computer/NAS capable of running Docker Compose. No command-line access is required *inside* Home Assistant.
+
+1. On the computer running Docker, install the companion:
+
+   ```bash
+   git clone https://github.com/jmping/tonalimporter.git
+   cd tonalimporter
+   cp docker-compose.example.yml docker-compose.yml
+   docker compose up -d --build
+   ```
+
+2. Check the companion: `curl http://127.0.0.1:8787/health`. Before sign-in, `auth_required` is normal.
+
+3. Add **ToneGet for Home Assistant** in HACS as a custom Integration repository using `https://github.com/jmping/tonalimporter`, install it, and restart Home Assistant. A beta release may require enabling prerelease versions in HACS.
+
+4. In Home Assistant, open **Settings → Devices & services → Add integration**, search for **ToneGet for Home Assistant**, and enter the companion URL that Home Assistant can actually reach. For containers sharing a Docker network, use `http://tonalimporter:8787`. For a supported host-gateway setup, `http://host.docker.internal:8787` may work. **The example Compose file binds only to 127.0.0.1, so it is not accessible from another machine by default**; a cross-host installation needs a *private* network arrangement.
+
+5. Complete the Tonal sign-in when Home Assistant requests reauthentication.
+
+**Do not expose port 8787 to the public internet.** The companion has no built-in client authentication and contains personal workout data. For Docker networking and non-Docker HA installations, see [HA_SETUP.md](HA_SETUP.md).
+
+### Updates
+
+- **Home Assistant side:** upgrade through HACS, then restart Home Assistant if requested.
+- **Companion side:** from its existing checkout, run `git pull --ff-only` and `docker compose up -d --build`. Keep the existing Docker data volume so saved authentication tokens persist.
+- **Release compatibility:** upgrade both pieces together when the release notes call for companion changes; HACS cannot rebuild Docker containers.
+
 ## Installation
 
 ### 1. Run the companion service
