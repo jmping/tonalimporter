@@ -1,4 +1,4 @@
-"""Config flow for Tonal Companion."""
+"""Config flow for ToneGet for Home Assistant."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from .const import CONF_HOST, DEFAULT_HOST, DOMAIN
 
 
 class TonalCompanionConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle Tonal Companion setup and reauthentication."""
+    """Handle ToneGet setup and reauthentication."""
 
     VERSION = 1
 
@@ -38,7 +38,7 @@ class TonalCompanionConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             else:
                 await self.async_set_unique_id(host)
                 self._abort_if_unique_id_configured()
-                return self.async_create_entry(title="Tonal", data={CONF_HOST: host})
+                return self.async_create_entry(title="ToneGet for Home Assistant", data={CONF_HOST: host})
 
         return self.async_show_form(
             step_id="user",
