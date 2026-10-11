@@ -22,15 +22,18 @@ Release candidate for the next public beta of **ToneGet for Home Assistant**.
 - Added manifest metadata including `issue_tracker`, `codeowners`, and `integration_type`.
 - Restored a standard MIT `LICENSE` file and separated supplemental disclaimer text into `DISCLAIMER.md`.
 - Repository metadata now includes HACS-friendly topics and an updated description.
-- HACS validation, Hassfest, and CI all pass on the release-preparation branch.
+- HACS validation, Hassfest, and CI passed on the merged installation/authentication pull requests. Verify them again on the release commit.
 
 ### Installation and upgrades
 
 HACS installs and updates the Home Assistant custom integration only.
 
-The companion service remains a separate local Docker service. Releases that contain companion changes still require updating the local checkout and rebuilding/restarting the companion container.
+The companion service remains a separate local Docker service. A multi-architecture (linux/amd64 and linux/arm64) GHCR publishing workflow and `docker-compose.ghcr.yml` were added, allowing users to pull a prebuilt image rather than build it locally once the package is published and public. The `edge` tag follows development; a matching version tag is preferable for released installations. Users running the source-build Compose setup must still pull the updated source and rebuild/restart their companion container. HACS cannot update the companion.
 
 ### Documentation
+
+- Added a beginner-oriented five-step quick start, including Docker connectivity and update instructions.
+- Clarified that the default Docker Compose example binds the companion API to localhost only and must not be exposed to the public internet.
 
 - Updated setup, contribution, security, and release documentation to match the current architecture and authentication behavior.
 - Clarified the separation between the MIT license and supplemental disclaimer.
