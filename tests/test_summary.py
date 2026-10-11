@@ -155,6 +155,7 @@ def test_reauth_only_after_three_consecutive_auth_failures(monkeypatch, tmp_path
 
 def test_rotated_refresh_token_is_persisted_without_resetting_failures(monkeypatch, tmp_path):
     import json
+
     import tonal_service
 
     token_file = tmp_path / "tokens.json"
