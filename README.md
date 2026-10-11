@@ -90,7 +90,7 @@ The companion service should remain reachable only from the Home Assistant host,
 
 3. Add **ToneGet for Home Assistant** in HACS as a custom Integration repository using `https://github.com/jmping/tonalimporter`, install it, and restart Home Assistant. A beta release may require enabling prerelease versions in HACS.
 
-4. In Home Assistant, open **Settings → Devices & services → Add integration**, search for **ToneGet for Home Assistant**, and enter the companion URL that Home Assistant can actually reach. For containers sharing a Docker network, use `http://tonalimporter:8787`. For a supported host-gateway setup, `http://host.docker.internal:8787` may work. **The example Compose file binds only to 127.0.0.1, so it is not accessible from another machine by default**; a cross-host installation needs a *private* network arrangement.
+4. In Home Assistant, open **Settings → Devices & services → Add integration**, search for **ToneGet for Home Assistant**, and enter the companion URL that Home Assistant can actually reach. For containers sharing a Docker network, use `http://tonalimporter:8787`. For a supported host-gateway setup, `http://host.docker.internal:8787` may work. **The example Compose file binds only to 127.0.0.1, so it is not accessible through the host's LAN address by default**; a cross-host installation needs a *private* network arrangement.
 
 5. Complete the Tonal sign-in when Home Assistant requests reauthentication.
 
