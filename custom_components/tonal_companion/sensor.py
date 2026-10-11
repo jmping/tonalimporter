@@ -133,6 +133,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     coordinator = hass.data[DOMAIN][entry.entry_id]
     descriptions = list(SENSORS)
 
+    # These optional entities retain their established unique IDs for compatibility.
+    # Region/muscle names supplied by Tonal are used to derive the keys.
     # Create one optional sensor per region and muscle returned by ToneGet.
     snapshot = coordinator.data or {}
     regions = _strength(snapshot).get("regions", {})
