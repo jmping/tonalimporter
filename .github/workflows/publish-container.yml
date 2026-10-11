@@ -3,14 +3,13 @@ name: Publish companion container
 on:
   push:
     branches: [main]
+    tags: ['v*']
     paths:
       - Dockerfile
       - requirements.txt
       - sync_workouts.py
       - tonal_service.py
       - .github/workflows/publish-container.yml
-  release:
-    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -41,7 +40,7 @@ jobs:
           tags: |
             type=raw,value=edge,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
             type=raw,value=edge,enable=${{ github.event_name == 'workflow_dispatch' }}
-            type=semver,pattern={{version}},event=tag
+            type=semver,pattern={{version}}
             type=ref,event=tag
       - name: Build and publish linux/amd64 and linux/arm64 images
         uses: docker/build-push-action@v6
