@@ -11,7 +11,7 @@ import os
 import threading
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional
 
@@ -59,8 +59,8 @@ def _parse_dt(value: str):
     except ValueError:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def _safe_number(value):
@@ -84,18 +84,40 @@ def _load_tokens() -> None:
                 _state.update({"status": "starting", "auth_required": False})
     except FileNotFoundError:
         return
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         with _state_lock:
-            _state["last_error"] = f"Could not load saved Tonal token: {exc}"
+            _state["last_error"] = "Could not load saved Tonal token file"
 
 
 def _save_tokens(tokens: Dict[str, Any]) -> None:
+    # Refresh tokens are sensitive; avoid leaving a world-readable temp file.
     os.makedirs(os.path.dirname(TOKEN_FILE) or ".", exist_ok=True)
     temp = f"{TOKEN_FILE}.tmp"
-    with open(temp, "w", encoding="utf-8") as handle:
-        json.dump(tokens, handle, separators=(",", ":"))
-    os.chmod(temp, 0o600)
-    os.replace(temp, TOKEN_FILE)
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(tokens, handle, separators=(",", ":"))
+        os.replace(temp, TOKEN_FILE)
+    except BaseException:
+        try:
+            os.unlink(temp)
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def _persist_refreshed_tokens(tokens: Dict[str, Any]) -> None:
+    """Persist refreshed credentials without resetting failed-sync state.
+
+    A token refresh is not proof that the subsequent Tonal API sync works.
+    Only a complete successful sync (or explicit new authentication) should
+    clear consecutive authentication failures or an existing reauth request.
+    """
+    global _tokens
+    _save_tokens(tokens)
+    with _token_lock:
+        _tokens = dict(tokens)
 
 
 def _set_tokens(tokens: Dict[str, Any]) -> None:
@@ -220,12 +242,12 @@ def _set_summary(workout: dict) -> dict[str, Any]:
 
 def build_summary(export_data: Dict[str, Any]) -> Dict[str, Any]:
     workouts = export_data.get("workouts", [])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     latest = workouts[0] if workouts else {}
 
     def workouts_since(days: int) -> list[dict]:
         cutoff = now - timedelta(days=days)
-        return [workout for workout in workouts if (_parse_dt(workout.get("beginTime")) or datetime.min.replace(tzinfo=timezone.utc)) >= cutoff]
+        return [workout for workout in workouts if (_parse_dt(workout.get("beginTime")) or datetime.min.replace(tzinfo=UTC)) >= cutoff]
 
     def volume(workout_list: list[dict]) -> float:
         return sum(float(workout.get("totalVolume") or 0) for workout in workout_list)
@@ -375,7 +397,7 @@ def _refresh_saved_tokens() -> bool:
         refreshed["refresh_token"] = refresh_token
 
     merged = {**previous_tokens, **refreshed}
-    _set_tokens(merged)
+    _persist_refreshed_tokens(merged)
     return True
 
 
@@ -390,7 +412,7 @@ def _sync_with_token(id_token: str) -> None:
 
     export_data = {
         "version": "3.0",
-        "exportedAt": datetime.now(timezone.utc).isoformat(),
+        "exportedAt": datetime.now(UTC).isoformat(),
         "user": user_info,
         "profile": profile,
         "workouts": workouts,
@@ -405,7 +427,7 @@ def _sync_with_token(id_token: str) -> None:
         _state.update({
             "status": "ok",
             "auth_required": False,
-            "last_sync": datetime.now(timezone.utc).isoformat(),
+            "last_sync": datetime.now(UTC).isoformat(),
             "last_error": None,
             "auth_failures": 0,
             "summary": summary,
@@ -433,12 +455,12 @@ def sync_once() -> None:
         except TonalAuthenticationError:
             if _record_auth_failure("Tonal authentication refresh was rejected"):
                 _require_reauth("Tonal authentication failed repeatedly; reauthentication is required")
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             with _state_lock:
-                _state.update({"status": "error", "last_error": str(exc)})
-    except Exception as exc:  # noqa: BLE001
+                _state.update({"status": "error", "last_error": "Tonal sync failed after token refresh"})
+    except Exception:  # noqa: BLE001
         with _state_lock:
-            _state.update({"status": "error", "last_error": str(exc)})
+            _state.update({"status": "error", "last_error": "Tonal sync failed; retrying later"})
 
 
 def sync_loop() -> None:
@@ -489,8 +511,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 authenticate_interactively(email, password)
                 self._send_json({"ok": True})
-            except Exception as exc:  # noqa: BLE001
-                self._send_json({"ok": False, "error": str(exc)}, 401)
+            except Exception:  # noqa: BLE001
+                self._send_json({"ok": False, "error": "Tonal authentication failed; check credentials or try again"}, 401)
             return
         if self.path == "/sync":
             sync_once()

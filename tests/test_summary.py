@@ -151,3 +151,90 @@ def test_reauth_only_after_three_consecutive_auth_failures(monkeypatch, tmp_path
     tonal_service.sync_once()
     assert tonal_service._state["auth_required"] is False
     assert tonal_service._state["auth_failures"] == 0
+
+
+def test_rotated_refresh_token_is_persisted_without_resetting_failures(monkeypatch, tmp_path):
+    import json
+
+    import tonal_service
+
+    token_file = tmp_path / "tokens.json"
+    monkeypatch.setattr(tonal_service, "TOKEN_FILE", str(token_file))
+    monkeypatch.setattr(tonal_service, "_tokens", {"id_token": "old", "refresh_token": "old-refresh"})
+    tonal_service._state["auth_failures"] = 2
+    tonal_service._state["auth_required"] = True
+    monkeypatch.setattr(
+        tonal_service, "refresh_authentication",
+        lambda token: {"id_token": "new", "refresh_token": "rotated-refresh", "expires_in": 3600},
+    )
+
+    assert tonal_service._refresh_saved_tokens() is True
+    assert tonal_service._tokens["refresh_token"] == "rotated-refresh"
+    assert json.loads(token_file.read_text())["refresh_token"] == "rotated-refresh"
+    assert tonal_service._state["auth_failures"] == 2
+    assert tonal_service._state["auth_required"] is True
+    assert token_file.stat().st_mode & 0o777 == 0o600
+
+
+def test_refresh_success_but_api_auth_failure_counts_toward_reauth(monkeypatch, tmp_path):
+    import tonal_service
+
+    monkeypatch.setattr(tonal_service, "TOKEN_FILE", str(tmp_path / "tokens.json"))
+    monkeypatch.setattr(tonal_service, "AUTH_FAILURE_THRESHOLD", 3)
+    monkeypatch.setattr(tonal_service, "_tokens", {"id_token": "expired", "refresh_token": "valid-refresh"})
+    tonal_service._state["auth_failures"] = 2
+    tonal_service._state["auth_required"] = False
+    monkeypatch.setattr(
+        tonal_service, "refresh_authentication",
+        lambda _: {"id_token": "still-rejected"},
+    )
+    monkeypatch.setattr(
+        tonal_service, "_sync_with_token",
+        lambda _: (_ for _ in ()).throw(tonal_service.TonalAuthenticationError("401")),
+    )
+    tonal_service.sync_once()
+
+    assert tonal_service._state["auth_failures"] == 3
+    assert tonal_service._state["auth_required"] is True
+    assert tonal_service._tokens["refresh_token"] == "valid-refresh"
+
+
+def test_refresh_network_failure_does_not_count_as_auth_rejection(monkeypatch, tmp_path):
+    import tonal_service
+
+    monkeypatch.setattr(tonal_service, "TOKEN_FILE", str(tmp_path / "tokens.json"))
+    monkeypatch.setattr(tonal_service, "_tokens", {"id_token": "expired", "refresh_token": "refresh"})
+    tonal_service._state["auth_failures"] = 1
+    tonal_service._state["auth_required"] = False
+    monkeypatch.setattr(
+        tonal_service, "_sync_with_token",
+        lambda _: (_ for _ in ()).throw(tonal_service.TonalAuthenticationError("401")),
+    )
+    monkeypatch.setattr(
+        tonal_service, "refresh_authentication",
+        lambda _: (_ for _ in ()).throw(ConnectionError("offline")),
+    )
+
+    tonal_service.sync_once()
+    assert tonal_service._state["auth_failures"] == 1
+    assert tonal_service._state["auth_required"] is False
+    assert tonal_service._tokens["refresh_token"] == "refresh"
+
+
+def test_no_refresh_token_eventually_requests_reauthentication(monkeypatch, tmp_path):
+    import tonal_service
+
+    monkeypatch.setattr(tonal_service, "TOKEN_FILE", str(tmp_path / "tokens.json"))
+    monkeypatch.setattr(tonal_service, "AUTH_FAILURE_THRESHOLD", 3)
+    monkeypatch.setattr(tonal_service, "_tokens", {"id_token": "expired"})
+    tonal_service._state["auth_failures"] = 0
+    tonal_service._state["auth_required"] = False
+    monkeypatch.setattr(
+        tonal_service, "_sync_with_token",
+        lambda _: (_ for _ in ()).throw(tonal_service.TonalAuthenticationError("401")),
+    )
+
+    for _ in range(3):
+        tonal_service.sync_once()
+    assert tonal_service._state["auth_required"] is True
+    assert tonal_service._tokens["id_token"] == "expired"

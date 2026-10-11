@@ -3,9 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any, Callable
 
-from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorEntityDescription,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
@@ -19,6 +24,19 @@ from .const import DOMAIN
 class TonalSensorDescription(SensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], Any]
     attributes_fn: Callable[[dict[str, Any]], dict[str, Any] | None] | None = None
+
+
+def _timestamp(value: Any) -> datetime | None:
+    """Convert service ISO timestamps into timezone-aware datetime values."""
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
 
 
 def _summary(data: dict[str, Any]) -> dict[str, Any]:
@@ -61,23 +79,23 @@ SENSORS = (
         name="Latest Workout",
         icon="mdi:dumbbell",
         value_fn=lambda d: _latest(d).get("title"),
-        attributes_fn=lambda d: _latest(d),
+        attributes_fn=lambda d: {k: v for k, v in _latest(d).items() if k not in {"movements", "id"}},
     ),
 
     # Lifetime/profile metrics.
     TonalSensorDescription(key="lifetime_volume", name="Lifetime Volume", icon="mdi:weight-pound", native_unit_of_measurement="lb", entity_registry_enabled_default=False, value_fn=lambda d: _profile(d).get("total_volume")),
     TonalSensorDescription(key="lifetime_reps", name="Lifetime Reps", icon="mdi:counter", entity_registry_enabled_default=False, value_fn=lambda d: _profile(d).get("total_reps")),
     TonalSensorDescription(key="lifetime_sets", name="Lifetime Sets", icon="mdi:counter", entity_registry_enabled_default=False, value_fn=lambda d: _profile(d).get("total_sets")),
-    TonalSensorDescription(key="days_since_last_workout", name="Days Since Last Workout", icon="mdi:calendar-range", native_unit_of_measurement="d", entity_registry_enabled_default=False, value_fn=lambda d: _profile(d).get("days_since_last_workout")),
-    TonalSensorDescription(key="first_workout", name="First Workout", icon="mdi:calendar-start", entity_registry_enabled_default=False, value_fn=lambda d: _profile(d).get("first_workout")),
+    TonalSensorDescription(key="days_since_last_workout", name="Days Since Last Workout", icon="mdi:calendar-range", device_class=SensorDeviceClass.DURATION, native_unit_of_measurement="d", entity_registry_enabled_default=False, value_fn=lambda d: _profile(d).get("days_since_last_workout")),
+    TonalSensorDescription(key="first_workout", name="First Workout", icon="mdi:calendar-start", device_class=SensorDeviceClass.TIMESTAMP, entity_registry_enabled_default=False, value_fn=lambda d: _timestamp(_profile(d).get("first_workout"))),
 
     # Latest workout metrics.
     TonalSensorDescription(key="latest_workout_volume", name="Latest Workout Volume", icon="mdi:weight-pound", native_unit_of_measurement="lb", entity_registry_enabled_default=False, value_fn=lambda d: _latest(d).get("total_volume")),
     TonalSensorDescription(key="latest_workout_reps", name="Latest Workout Reps", icon="mdi:counter", entity_registry_enabled_default=False, value_fn=lambda d: _latest(d).get("total_reps")),
     TonalSensorDescription(key="latest_workout_sets", name="Latest Workout Sets", icon="mdi:counter", entity_registry_enabled_default=False, value_fn=lambda d: _latest(d).get("set_count")),
     TonalSensorDescription(key="latest_workout_movements", name="Latest Workout Movements", icon="mdi:dumbbell", entity_registry_enabled_default=False, value_fn=lambda d: _latest(d).get("movement_count"), attributes_fn=lambda d: {"movements": _latest(d).get("movements", [])}),
-    TonalSensorDescription(key="latest_workout_duration", name="Latest Workout Duration", icon="mdi:timer-outline", native_unit_of_measurement="s", entity_registry_enabled_default=False, value_fn=lambda d: _latest(d).get("duration")),
-    TonalSensorDescription(key="latest_workout_time", name="Latest Workout Time", icon="mdi:calendar-clock", entity_registry_enabled_default=False, value_fn=lambda d: _latest(d).get("begin_time")),
+    TonalSensorDescription(key="latest_workout_duration", name="Latest Workout Duration", icon="mdi:timer-outline", device_class=SensorDeviceClass.DURATION, native_unit_of_measurement="s", entity_registry_enabled_default=False, value_fn=lambda d: _latest(d).get("duration")),
+    TonalSensorDescription(key="latest_workout_time", name="Latest Workout Time", icon="mdi:calendar-clock", device_class=SensorDeviceClass.TIMESTAMP, entity_registry_enabled_default=False, value_fn=lambda d: _timestamp(_latest(d).get("begin_time"))),
     TonalSensorDescription(key="latest_workout_type", name="Latest Workout Type", icon="mdi:tag-outline", entity_registry_enabled_default=False, value_fn=lambda d: _latest(d).get("type")),
     TonalSensorDescription(key="latest_max_weight", name="Latest Workout Max Weight", icon="mdi:weight-pound", native_unit_of_measurement="lb", entity_registry_enabled_default=False, value_fn=lambda d: _latest(d).get("max_weight")),
     TonalSensorDescription(key="latest_max_one_rep_max", name="Latest Workout Max 1RM", icon="mdi:weight-lifter", native_unit_of_measurement="lb", entity_registry_enabled_default=False, value_fn=lambda d: _latest(d).get("max_one_rep_max")),
@@ -110,7 +128,7 @@ SENSORS = (
     TonalSensorDescription(key="strength_history", name="Strength Score History", icon="mdi:chart-line", entity_registry_enabled_default=False, value_fn=lambda d: len(_strength(d).get("history", [])), attributes_fn=lambda d: {"history": _strength(d).get("history", [])}),
 
     # Diagnostics.
-    TonalSensorDescription(key="last_sync", name="Last Sync", icon="mdi:sync", entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False, value_fn=lambda d: d.get("last_sync")),
+    TonalSensorDescription(key="last_sync", name="Last Sync", icon="mdi:sync", device_class=SensorDeviceClass.TIMESTAMP, entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False, value_fn=lambda d: _timestamp(d.get("last_sync"))),
     TonalSensorDescription(key="service_status", name="Service Status", icon="mdi:heart-pulse", entity_category=EntityCategory.DIAGNOSTIC, entity_registry_enabled_default=False, value_fn=lambda d: d.get("status")),
 )
 
@@ -119,6 +137,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
     coordinator = hass.data[DOMAIN][entry.entry_id]
     descriptions = list(SENSORS)
 
+    # These optional entities retain their established unique IDs for compatibility.
+    # Region/muscle names supplied by Tonal are used to derive the keys.
     # Create one optional sensor per region and muscle returned by ToneGet.
     snapshot = coordinator.data or {}
     regions = _strength(snapshot).get("regions", {})
