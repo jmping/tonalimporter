@@ -90,12 +90,21 @@ def _load_tokens() -> None:
 
 
 def _save_tokens(tokens: Dict[str, Any]) -> None:
+    # Refresh tokens are sensitive; avoid leaving a world-readable temp file.
     os.makedirs(os.path.dirname(TOKEN_FILE) or ".", exist_ok=True)
     temp = f"{TOKEN_FILE}.tmp"
-    with open(temp, "w", encoding="utf-8") as handle:
-        json.dump(tokens, handle, separators=(",", ":"))
-    os.chmod(temp, 0o600)
-    os.replace(temp, TOKEN_FILE)
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(tokens, handle, separators=(",", ":"))
+        os.replace(temp, TOKEN_FILE)
+    except BaseException:
+        try:
+            os.unlink(temp)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def _persist_refreshed_tokens(tokens: Dict[str, Any]) -> None:
