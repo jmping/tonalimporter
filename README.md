@@ -71,6 +71,27 @@ Tonal
 
 The companion service should remain reachable only from the Home Assistant host, LAN, or private Docker network. Do not expose port 8787 publicly.
 
+### Prebuilt companion image (no local build)
+
+A GitHub Actions workflow publishes Docker images for **linux/amd64** and **linux/arm64** to GitHub Container Registry (GHCR). After the first successful publishing run, use the included `docker-compose.ghcr.yml` instead of building from source:
+
+```bash
+git clone https://github.com/jmping/tonalimporter.git
+cd tonalimporter
+docker compose -f docker-compose.ghcr.yml up -d
+```
+
+This uses the development `edge` image. For production, **pin a released version** in `docker-compose.ghcr.yml` once the matching tagged image has been published.
+
+To update the prebuilt image:
+
+```bash
+docker compose -f docker-compose.ghcr.yml pull
+docker compose -f docker-compose.ghcr.yml up -d
+```
+
+The companion token data persists in a named Docker volume. The default example binds port 8787 to localhost only; set up private Docker networking when Home Assistant is in another container. Never expose this unauthenticated API publicly.
+
 ## Installation
 
 ### 1. Run the companion service
