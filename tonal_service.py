@@ -11,7 +11,7 @@ import os
 import threading
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional
 
@@ -59,8 +59,8 @@ def _parse_dt(value: str):
     except ValueError:
         return None
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def _safe_number(value):
@@ -84,7 +84,7 @@ def _load_tokens() -> None:
                 _state.update({"status": "starting", "auth_required": False})
     except FileNotFoundError:
         return
-    except Exception as exc:  # noqa: BLE001
+    except Exception:  # noqa: BLE001
         with _state_lock:
             _state["last_error"] = "Could not load saved Tonal token file"
 
@@ -242,12 +242,12 @@ def _set_summary(workout: dict) -> dict[str, Any]:
 
 def build_summary(export_data: Dict[str, Any]) -> Dict[str, Any]:
     workouts = export_data.get("workouts", [])
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     latest = workouts[0] if workouts else {}
 
     def workouts_since(days: int) -> list[dict]:
         cutoff = now - timedelta(days=days)
-        return [workout for workout in workouts if (_parse_dt(workout.get("beginTime")) or datetime.min.replace(tzinfo=timezone.utc)) >= cutoff]
+        return [workout for workout in workouts if (_parse_dt(workout.get("beginTime")) or datetime.min.replace(tzinfo=UTC)) >= cutoff]
 
     def volume(workout_list: list[dict]) -> float:
         return sum(float(workout.get("totalVolume") or 0) for workout in workout_list)
@@ -412,7 +412,7 @@ def _sync_with_token(id_token: str) -> None:
 
     export_data = {
         "version": "3.0",
-        "exportedAt": datetime.now(timezone.utc).isoformat(),
+        "exportedAt": datetime.now(UTC).isoformat(),
         "user": user_info,
         "profile": profile,
         "workouts": workouts,
@@ -427,7 +427,7 @@ def _sync_with_token(id_token: str) -> None:
         _state.update({
             "status": "ok",
             "auth_required": False,
-            "last_sync": datetime.now(timezone.utc).isoformat(),
+            "last_sync": datetime.now(UTC).isoformat(),
             "last_error": None,
             "auth_failures": 0,
             "summary": summary,
