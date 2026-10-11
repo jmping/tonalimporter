@@ -98,6 +98,19 @@ def _save_tokens(tokens: Dict[str, Any]) -> None:
     os.replace(temp, TOKEN_FILE)
 
 
+def _persist_refreshed_tokens(tokens: Dict[str, Any]) -> None:
+    """Persist refreshed credentials without resetting failed-sync state.
+
+    A token refresh is not proof that the subsequent Tonal API sync works.
+    Only a complete successful sync (or explicit new authentication) should
+    clear consecutive authentication failures or an existing reauth request.
+    """
+    global _tokens
+    _save_tokens(tokens)
+    with _token_lock:
+        _tokens = dict(tokens)
+
+
 def _set_tokens(tokens: Dict[str, Any]) -> None:
     global _tokens
     with _token_lock:
@@ -375,7 +388,7 @@ def _refresh_saved_tokens() -> bool:
         refreshed["refresh_token"] = refresh_token
 
     merged = {**previous_tokens, **refreshed}
-    _set_tokens(merged)
+    _persist_refreshed_tokens(merged)
     return True
 
 
