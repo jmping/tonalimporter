@@ -177,7 +177,7 @@ def authenticate(email: str, password: str) -> dict:
     elif response.status_code == 403:
         raise PermissionError("Access denied. Your account may be locked or require verification.")
     elif response.status_code != 200:
-        raise Exception(f"Authentication failed: {response.status_code} - {response.text}")
+        raise Exception(f"Authentication failed with status {response.status_code}")
     
     print("✅ Authentication successful!")
     return response.json()
