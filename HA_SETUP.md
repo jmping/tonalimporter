@@ -150,3 +150,21 @@ Many additional lifetime, rolling-window, latest-workout, record, strength-regio
 - Do not expose port 8787 publicly.
 - Protect Home Assistant backups and recorder data because workout information may be sensitive.
 - The project uses an unofficial Tonal API/authentication workflow and can break if Tonal changes its service.
+
+## Troubleshooting
+
+### Companion is unreachable
+
+Check that the companion container is running, that `/health` responds from an appropriate trusted host, and that the configured URL is reachable **from inside the Home Assistant container**. `127.0.0.1` in one container does not refer to another container or the Docker host.
+
+### Reauthentication prompt
+
+The companion requests reauthentication only after repeated confirmed authentication failures (three by default). A temporary upstream/network error should not discard stored credentials. When a valid refresh token is available, the companion attempts refresh and retries sync. A later successful sync clears any outstanding `auth_required` state. If the refresh token has expired or been revoked, sign in again from the Home Assistant integration UI.
+
+### Checking token persistence safely
+
+The companion stores returned token material in its private data volume. To verify whether a refresh token exists, inspect the JSON **keys/presence only**; never print actual token strings or attach the token file to a bug report. A long-lived session cannot be guaranteed: Tonal/Auth0 controls whether refresh tokens are returned, their lifetimes, rotation, and revocation.
+
+### Upgrade after authentication changes
+
+HACS does not update `tonal_service.py`. Pull the matching release/branch and rebuild the companion Docker service, then upgrade the Home Assistant component through HACS when a compatible release is available. Keep the token data volume when recreating the container.
