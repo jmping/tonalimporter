@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription, SensorStateClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
@@ -75,7 +75,7 @@ SENSORS = (
         name="Latest Workout",
         icon="mdi:dumbbell",
         value_fn=lambda d: _latest(d).get("title"),
-        attributes_fn=lambda d: _latest(d),
+        attributes_fn=lambda d: {k: v for k, v in _latest(d).items() if k not in {"movements", "id"}},
     ),
 
     # Lifetime/profile metrics.
