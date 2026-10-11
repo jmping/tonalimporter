@@ -92,6 +92,32 @@ docker compose -f docker-compose.ghcr.yml up -d
 
 The companion token data persists in a named Docker volume. The default example binds port 8787 to localhost only; set up private Docker networking when Home Assistant is in another container. Never expose this unauthenticated API publicly.
 
+## Quick start
+
+**You need two pieces:** the companion Docker service and the Home Assistant integration installed through HACS. HACS does not install the companion.
+
+1. On a machine with Docker Compose, download this repository and start the **prebuilt** companion (no image build required):
+
+   ```bash
+   git clone https://github.com/jmping/tonalimporter.git
+   cd tonalimporter
+   docker compose -f docker-compose.ghcr.yml up -d
+   ```
+
+   The GHCR image must have been published successfully and made publicly readable. Until then, use the source-build instructions below.
+
+2. Confirm the service starts: `curl http://127.0.0.1:8787/health`. An `auth_required` response is expected before first sign-in.
+
+3. In HACS, add `jmping/tonalimporter` as a **custom Integration repository**, install **ToneGet for Home Assistant**, and restart Home Assistant.
+
+4. In **Settings → Devices & services → Add integration**, search for **ToneGet for Home Assistant**. Supply a companion URL reachable *from Home Assistant*, not merely from your browser. If both containers share a private Docker network, try `http://tonalimporter:8787`. On hosts supporting Docker host gateway access, `http://host.docker.internal:8787` may work.
+
+5. Sign into your Tonal account when the integration requests authentication.
+
+**Security:** The companion has no client authentication. Its default Compose file publishes port 8787 on localhost only. For a different host or container network, configure private connectivity deliberately; **never forward port 8787 to the internet**. See [HA_SETUP.md](HA_SETUP.md).
+
+**Updating:** HACS updates the HA component. Update the companion separately with `docker compose -f docker-compose.ghcr.yml pull` followed by `docker compose -f docker-compose.ghcr.yml up -d`. Keep the existing `tonalimporter_data` Docker volume to retain tokens. The `edge` tag tracks development; pin a published version for stable installations.
+
 ## Installation
 
 ### 1. Run the companion service
