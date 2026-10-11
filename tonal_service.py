@@ -86,7 +86,7 @@ def _load_tokens() -> None:
         return
     except Exception as exc:  # noqa: BLE001
         with _state_lock:
-            _state["last_error"] = f"Could not load saved Tonal token: {exc}"
+            _state["last_error"] = "Could not load saved Tonal token file"
 
 
 def _save_tokens(tokens: Dict[str, Any]) -> None:
@@ -446,12 +446,12 @@ def sync_once() -> None:
         except TonalAuthenticationError:
             if _record_auth_failure("Tonal authentication refresh was rejected"):
                 _require_reauth("Tonal authentication failed repeatedly; reauthentication is required")
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             with _state_lock:
-                _state.update({"status": "error", "last_error": str(exc)})
-    except Exception as exc:  # noqa: BLE001
+                _state.update({"status": "error", "last_error": "Tonal sync failed after token refresh"})
+    except Exception:  # noqa: BLE001
         with _state_lock:
-            _state.update({"status": "error", "last_error": str(exc)})
+            _state.update({"status": "error", "last_error": "Tonal sync failed; retrying later"})
 
 
 def sync_loop() -> None:
@@ -502,8 +502,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 authenticate_interactively(email, password)
                 self._send_json({"ok": True})
-            except Exception as exc:  # noqa: BLE001
-                self._send_json({"ok": False, "error": str(exc)}, 401)
+            except Exception:  # noqa: BLE001
+                self._send_json({"ok": False, "error": "Tonal authentication failed; check credentials or try again"}, 401)
             return
         if self.path == "/sync":
             sync_once()
