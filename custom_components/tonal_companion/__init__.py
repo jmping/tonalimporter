@@ -1,4 +1,4 @@
-"""Tonal Companion integration."""
+"""ToneGet for Home Assistant integration."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from .const import CONF_HOST, DOMAIN, PLATFORMS
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up Tonal Companion from a config entry."""
+    """Set up ToneGet from a config entry."""
     client = TonalClient(entry.data[CONF_HOST])
 
     async def _async_update_data():
@@ -28,7 +28,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = DataUpdateCoordinator(
         hass,
         logger=__import__("logging").getLogger(__name__),
-        name="Tonal Companion",
+        name="ToneGet for Home Assistant",
         update_method=_async_update_data,
         update_interval=timedelta(minutes=15),
     )
@@ -46,7 +46,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a Tonal Companion config entry."""
+    """Unload a ToneGet config entry."""
     unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unloaded:
         hass.data[DOMAIN].pop(entry.entry_id, None)
