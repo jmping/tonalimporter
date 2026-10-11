@@ -6,6 +6,16 @@
 
 Unofficial Home Assistant integration and local companion service for accessing your own Tonal workout data.
 
+> **Before installing:** ToneGet requires a separately running **local companion service**. Deploy it first using the [Quick start](#quick-start). HACS installs only the Home Assistant integration, not the companion.
+
+<p align="center">
+  <a href="https://my.home-assistant.io/redirect/hacs_repository/?owner=jmping&repository=tonalimporter&category=integration"><img src="https://my.home-assistant.io/badges/hacs_repository.svg" alt="Open this repository in HACS"></a>
+  &nbsp;
+  <a href="https://my.home-assistant.io/redirect/config_flow_start/?domain=tonal_companion"><img src="https://my.home-assistant.io/badges/config_flow_start.svg" alt="Add ToneGet in Home Assistant"></a>
+</p>
+
+The first button adds ToneGet to HACS as a custom repository. **Install the integration and restart Home Assistant** before using the second button to configure it. The second button does not install the companion service.
+
 > **Not affiliated with Tonal Systems, Inc.** This is a community project. It is not produced, endorsed, sponsored, or supported by Tonal Systems, Inc. "Tonal" is used only to identify compatibility with the service. The artwork above is generic strength-training artwork, not Tonal branding.
 
 > **Vibecoded project:** this Home Assistant bridge was built collaboratively with an AI coding assistant on top of the community **ToneGet** exporter. It has been tested on a real Home Assistant installation and is intentionally labeled beta software. Expect rough edges, undocumented-API breakage, and occasional implementation choices that deserve review.
